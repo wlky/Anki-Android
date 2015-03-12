@@ -18,6 +18,7 @@
 package com.ichi2.anki;
 
 import android.app.Dialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -28,10 +29,12 @@ import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v7.app.ActionBarActivity;
+import android.text.ClipboardManager;
 import android.text.method.LinkMovementMethod;
-import android.util.Log;
+
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -51,6 +54,7 @@ import com.ichi2.themes.StyledDialog;
 import com.ichi2.themes.StyledProgressDialog;
 import com.ichi2.themes.Themes;
 
+import org.acra.util.Installation;
 import org.apache.commons.httpclient.contrib.ssl.EasySSLSocketFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -82,6 +86,8 @@ import java.util.regex.Pattern;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLException;
+
+import timber.log.Timber;
 
 /**
  * Shows an about box, which is a small HTML page.
@@ -128,7 +134,7 @@ public class Info extends ActionBarActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.i(AnkiDroidApp.TAG, "Info - onCreate()");
+        Timber.d("onCreate()");
         Themes.applyTheme(this);
         super.onCreate(savedInstanceState);
 
@@ -151,8 +157,14 @@ public class Info extends ActionBarActivity {
             @Override
             public void onClick(View arg0) {
                 if (mType == TYPE_ABOUT) {
-                    Info.this.startActivity(new Intent(Intent.ACTION_VIEW, Uri
-                            .parse("market://details?id=com.ichi2.anki")));
+                    if (AnkiDroidApp.isKindle()) {
+                        Intent intent = new Intent("android.intent.action.VIEW",
+                                Uri.parse("http://www.amazon.com/gp/mas/dl/android?p=com.ichi2.anki"));
+                        startActivity(intent);
+                    } else {
+                        Info.this.startActivity(new Intent(Intent.ACTION_VIEW, Uri
+                                .parse("market://details?id=com.ichi2.anki")));
+                    }
                     return;
                 }
                 setResult(RESULT_OK);
@@ -193,6 +205,15 @@ public class Info extends ActionBarActivity {
                 sb.append("</body></html>");
                 mWebView.loadDataWithBaseURL("", sb.toString(), "text/html", "utf-8", null);
                 ((Button) findViewById(R.id.info_continue)).setText(res.getString(R.string.info_rate));
+                Button debugCopy = ((Button) findViewById(R.id.info_later));
+                debugCopy.setText(res.getString(R.string.feedback_copy_debug));
+                debugCopy.setVisibility(View.VISIBLE);
+                debugCopy.setOnClickListener(new OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        copyDebugInfo();
+                    }
+                });
                 break;
 
             case TYPE_NEW_VERSION:
@@ -668,7 +689,7 @@ public class Info extends ActionBarActivity {
                 setResult(RESULT_OK, result);
                 finishWithAnimation(false);
             } else {
-                Log.i(AnkiDroidApp.TAG, "Info - onBackPressed()");
+                Timber.i("onBackPressed()");
                 setResult(RESULT_CANCELED);
                 finishWithAnimation();
             }
@@ -693,7 +714,7 @@ public class Info extends ActionBarActivity {
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            Log.i(AnkiDroidApp.TAG, "LoadSharedDecks: loading: " + url);
+            Timber.i("LoadSharedDecks: loading: " + url);
             view.loadUrl(url);
             return true;
         }
@@ -718,7 +739,7 @@ public class Info extends ActionBarActivity {
             @Override
             protected String doInBackground(String... params) {
                 super.doInBackground(params);
-                Log.i(AnkiDroidApp.TAG, "Info.ParseSharedDecks.doInBackground()");
+                Timber.d("Info.ParseSharedDecks.doInBackground()");
                 HttpGet pageGet = new HttpGet(params[0]);
                 HostnameVerifier hostnameVerifier = org.apache.http.conn.ssl.SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
 
@@ -798,7 +819,7 @@ public class Info extends ActionBarActivity {
             @Override
             protected void onPostExecute(String html) {
                 super.onPostExecute(html);
-                Log.d(AnkiDroidApp.TAG, "Info.ParseSharedDecks.onPostExecute()");
+                Timber.d("Info.ParseSharedDecks.onPostExecute()");
                 if (mWebView != null && mUrl != null & html != null) {
                     mWebView.loadDataWithBaseURL(mUrl, html, null, "utf-8", mUrl);
                     mLoadingLayer.setVisibility(View.INVISIBLE);
@@ -831,7 +852,7 @@ public class Info extends ActionBarActivity {
 
         @Override
         public void onPreExecute() {
-            Log.i(AnkiDroidApp.TAG, "Info: UpgradeDecks - onPreExcecute");
+            Timber.d("Info: UpgradeDecks - onPreExcecute");
             if (mProgressDialog == null || !mProgressDialog.isShowing()) {
                 mProgressDialog = StyledProgressDialog.show(Info.this, "",
                         getResources().getString(R.string.upgrade_decks_zipping), true, false,
@@ -847,14 +868,14 @@ public class Info extends ActionBarActivity {
 
         @Override
         public void onPostExecute(Payload data) {
-            Log.i(AnkiDroidApp.TAG, "Info: UpgradeDecks - onPostExecute, success = " + data.success);
+            Timber.i("Info: UpgradeDecks - onPostExecute, success = %b", data.success);
             Resources res = getResources();
             try {
                 if (mProgressDialog != null && mProgressDialog.isShowing()) {
                     mProgressDialog.dismiss();
                 }
             } catch (IllegalArgumentException e) {
-                Log.e(AnkiDroidApp.TAG, "Info - IllegalArgumentException: " + e);
+                Timber.e(e, "Info - IllegalArgumentException");
             }
 
             if (data.success) {
@@ -985,7 +1006,7 @@ public class Info extends ActionBarActivity {
 
         @Override
         public void onPreExecute() {
-            Log.i(AnkiDroidApp.TAG, "Info: mDownloadDeckListener - onPreExcecute");
+            Timber.d("Info: mDownloadDeckListener - onPreExcecute");
             if (mProgressDialog == null || !mProgressDialog.isShowing()) {
                 mProgressDialog = StyledProgressDialog.show(Info.this, "",
                         getResources().getString(R.string.download_deck, countDown / 1024), true);
@@ -995,14 +1016,14 @@ public class Info extends ActionBarActivity {
 
         @Override
         public void onPostExecute(Payload data) {
-            Log.i(AnkiDroidApp.TAG, "Info: mDownloadDeckListener - onPostExecute, success = " + data.success);
+            Timber.i("Info: mDownloadDeckListener - onPostExecute, success = %b", data.success);
             Resources res = getResources();
             try {
                 if (mProgressDialog != null && mProgressDialog.isShowing()) {
                     mProgressDialog.dismiss();
                 }
             } catch (IllegalArgumentException e) {
-                Log.e(AnkiDroidApp.TAG, "Info - IllegalArgumentException: " + e);
+                Timber.e("Info - IllegalArgumentException: " + e);
             }
 
             if (data.success) {
@@ -1088,7 +1109,7 @@ public class Info extends ActionBarActivity {
 
         @Override
         public void onPostExecute(Payload data) {
-            Log.i(AnkiDroidApp.TAG, "onPostExecute");
+            Timber.d("mSyncListener.onPostExecute()");
             Resources res = Info.this.getResources();
             if (mProgressDialog != null) {
                 mProgressDialog.dismiss();
@@ -1186,6 +1207,24 @@ public class Info extends ActionBarActivity {
             }
         });
         builder.show();
+    }
+
+    /**
+     * Copy debug information about the device to the clipboard
+     * @return debugInfo
+     */
+    public String copyDebugInfo() {
+        StringBuilder sb = new StringBuilder();
+        // AnkiDroid Version
+        sb.append("AnkiDroid Version = ").append(AnkiDroidApp.getPkgVersionName()).append("\n\n");
+        // Android SDK
+        sb.append("Android Version = " + Build.VERSION.RELEASE).append("\n\n");
+        // ACRA install ID
+        sb.append("ACRA UUID = ").append(Installation.id(this)).append("\n");
+        String debugInfo = sb.toString();
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setText(debugInfo);
+        return debugInfo;
     }
 
 }

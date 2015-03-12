@@ -9,12 +9,11 @@ import android.os.Bundle;
 import android.os.Message;
 import android.provider.OpenableColumns;
 import android.support.v4.content.IntentCompat;
-import android.util.Log;
+
 
 import com.ichi2.anim.ActivityTransitionAnimation;
 import com.ichi2.anki.dialogs.DialogHandler;
 import com.ichi2.themes.StyledDialog;
-import com.ichi2.themes.Themes;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -22,6 +21,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+
+import timber.log.Timber;
 
 /**
  * Class which handles how the application responds to different intents, forcing it to always be single task,
@@ -37,7 +38,7 @@ public class IntentHandler extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.styled_open_collection_dialog);
         Intent intent = getIntent();
-        Log.v(AnkiDroidApp.TAG, intent.toString());
+        Timber.v(intent.toString());
         Intent reloadIntent = new Intent(this, DeckPicker.class);
         reloadIntent.setDataAndType(getIntent().getData(), getIntent().getType());
         String action = intent.getAction();
@@ -64,14 +65,14 @@ public class IntentHandler extends Activity {
                    If the data type is apkg then we can assume that it's a shared deck from AnkiWeb
                    so we give it a dummy filename*/
                 if (filename == null) {
-                    Log.e(AnkiDroidApp.TAG, "Could not get filename from Content Provider. cursor = " + cursor);
+                    Timber.e("Could not get filename from Content Provider. cursor = " + cursor);
                     if (intent.getType().equals("application/apkg")) {
                         filename = "unknown_filename.apkg";
                     }
                 }
                 if (filename != null && filename.endsWith(".apkg")) {
                     Uri importUri = Uri.fromFile(new File(getCacheDir(), filename));
-                    Log.v(AnkiDroidApp.TAG, "IntentHandler copying apkg file to " + importUri.getEncodedPath());
+                    Timber.v("IntentHandler copying apkg file to %s", importUri.getEncodedPath());
                     // Copy to temp file
                     try {
                         // Get an input stream to the data in ContentProvider
@@ -90,16 +91,17 @@ public class IntentHandler extends Activity {
                         successful = sendShowImportFileDialogMsg(importUri.getEncodedPath());
                     } catch (FileNotFoundException e) {
                         errorMessage=e.getLocalizedMessage();
-                        e.printStackTrace();
+                        AnkiDroidApp.sendExceptionReport(e, "IntentHandler.java", "apkg import failed: " + filename);
                     } catch (IOException e2) {
                         errorMessage=e2.getLocalizedMessage();
-                        e2.printStackTrace();
+                        AnkiDroidApp.sendExceptionReport(e2, "IntentHandler.java", "apkg import failed" + filename);
                     }
                 } else {
                     if (filename == null) {
                         errorMessage = "Could not retrieve filename from content resolver; try opening the apkg file with a file explorer";
+                        AnkiDroidApp.sendExceptionReport("IntentHandler.java", "apkg import failed (filename null, no MIME type provided)");
                     } else {
-                        errorMessage = "Filename " + filename + " does not have .apkg extension";
+                        errorMessage = getResources().getString(R.string.import_error_not_apkg_extension, filename);
                     }
                 }
             } else if (intent.getData().getScheme().equals("file")) {

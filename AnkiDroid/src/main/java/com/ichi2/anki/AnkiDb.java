@@ -19,17 +19,22 @@
 
 package com.ichi2.anki;
 
+import android.annotation.TargetApi;
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.database.DatabaseErrorHandler;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
-import android.util.Log;
+import android.os.Build;
+
 import android.widget.Toast;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
+import timber.log.Timber;
 
 /**
  * Database layer for AnkiDroid. Can read the native Anki format through Android's SQLite driver.
@@ -48,16 +53,36 @@ public class AnkiDb {
     /**
      * Open a database connection to an ".anki" SQLite file.
      */
+    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     public AnkiDb(String ankiFilename) {
-        mDatabase = SQLiteDatabase.openDatabase(ankiFilename, null,
-                (SQLiteDatabase.OPEN_READWRITE + SQLiteDatabase.CREATE_IF_NECESSARY)
-                        | SQLiteDatabase.NO_LOCALIZED_COLLATORS);
+        // Since API 11 we can provide a custom error handler which doesn't delete the database on corruption
+        if (AnkiDroidApp.SDK_VERSION >=  Build.VERSION_CODES.HONEYCOMB) {
+            mDatabase = SQLiteDatabase.openDatabase(ankiFilename, null,
+                    (SQLiteDatabase.OPEN_READWRITE + SQLiteDatabase.CREATE_IF_NECESSARY)
+                            | SQLiteDatabase.NO_LOCALIZED_COLLATORS, new MyDbErrorHandler());
+        } else {
+            mDatabase = SQLiteDatabase.openDatabase(ankiFilename, null,
+                    (SQLiteDatabase.OPEN_READWRITE + SQLiteDatabase.CREATE_IF_NECESSARY)
+                            | SQLiteDatabase.NO_LOCALIZED_COLLATORS);
+        }
+
         if (mDatabase != null) {
             setWalJournalMode();
             mDatabase.rawQuery("PRAGMA synchronous = 2", null);
         }
         // getDatabase().beginTransactionNonExclusive();
         mMod = false;
+    }
+
+    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
+    public class MyDbErrorHandler implements DatabaseErrorHandler {
+        @Override
+        public void onCorruption(SQLiteDatabase db) {
+            Timber.e("The database has been corrupted...");
+            AnkiDroidApp.sendExceptionReport("AnkiDb.MyDbErrorHandler.onCorruption", "Db has been corrupted ");
+            AnkiDroidApp.closeCollection(false);
+            AnkiDroidApp.setDbCorruptedFlag();
+        }
     }
 
 
@@ -69,7 +94,7 @@ public class AnkiDb {
             // set journal mode again to delete in order to make the db accessible for anki desktop and for full upload
             setDeleteJournalMode();
             mDatabase.close();
-            Log.i(AnkiDroidApp.TAG, "AnkiDb - closeDatabase, database " + mDatabase.getPath() + " closed = " + !mDatabase.isOpen());
+            Timber.d("closeDatabase, database %s closed = %s", mDatabase.getPath(), !mDatabase.isOpen());
             mDatabase = null;
         }
     }
@@ -234,14 +259,14 @@ public class AnkiDb {
                     sb.append("AnkiDb.queryColumn (column " + column + "): ");
                     sb.append("Exception due to null. Query: " + query);
                     sb.append(" Null occurrences during this query: " + nullExceptionCount);
-                    AnkiDroidApp.saveExceptionReportFile(nullException, "queryColumn_encounteredNull", sb.toString());
-                    Log.w(AnkiDroidApp.TAG, sb.toString());
+                    AnkiDroidApp.sendExceptionReport(nullException, "queryColumn_encounteredNull", sb.toString());
+                    Timber.w(sb.toString());
                 } else { // nullException not properly initialized
                     StringBuilder sb = new StringBuilder();
                     sb.append("AnkiDb.queryColumn(): Critical error -- ");
                     sb.append("unable to pass in the actual exception to error reporting.");
-                    AnkiDroidApp.saveExceptionReportFile("queryColumn_encounteredNull", sb.toString());
-                    Log.e(AnkiDroidApp.TAG, sb.toString());
+                    AnkiDroidApp.sendExceptionReport("queryColumn_encounteredNull", sb.toString());
+                    Timber.e(sb.toString());
                 }
             }
         }

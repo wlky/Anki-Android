@@ -35,6 +35,7 @@ import android.view.Display;
 import android.view.ViewConfiguration;
 import android.view.WindowManager;
 
+import com.ichi2.anki.dialogs.AnkiDroidCrashReportDialog;
 import com.ichi2.anki.exception.AnkiDroidErrorReportException;
 import com.ichi2.async.Connection;
 import com.ichi2.compat.Compat;
@@ -51,21 +52,93 @@ import com.ichi2.libanki.Storage;
 import com.ichi2.libanki.hooks.Hooks;
 import com.ichi2.utils.LanguageUtil;
 
+import org.acra.ACRA;
+import org.acra.ACRAConfigurationException;
+import org.acra.ReportField;
+import org.acra.ReportingInteractionMode;
+import org.acra.annotation.ReportsCrashes;
+import org.acra.sender.HttpSender;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import timber.log.Timber;
 
 /**
  * Application class.
  */
+@ReportsCrashes(
+        reportDialogClass = AnkiDroidCrashReportDialog.class,
+        httpMethod = HttpSender.Method.PUT,
+        reportType = HttpSender.Type.JSON,
+        formUri = "https://ankidroid.org/acra/report",
+        mode = ReportingInteractionMode.DIALOG,
+        resDialogCommentPrompt =  R.string.empty_string,
+        resDialogTitle =  R.string.feedback_title,
+        resDialogText =  R.string.feedback_default_text,
+        resToastText = R.string.feedback_auto_toast_text,
+        resDialogPositiveButtonText = R.string.feedback_report,
+        additionalSharedPreferences = {"com.ichi2.anki"},
+        excludeMatchingSharedPreferencesKeys = {"username","hkey"},
+        customReportContent = {
+            ReportField.REPORT_ID,
+            ReportField.APP_VERSION_CODE,
+            ReportField.APP_VERSION_NAME,
+            ReportField.PACKAGE_NAME,
+            ReportField.FILE_PATH,
+            ReportField.PHONE_MODEL,
+            ReportField.ANDROID_VERSION,
+            ReportField.BUILD,
+            ReportField.BRAND,
+            ReportField.PRODUCT,
+            ReportField.TOTAL_MEM_SIZE,
+            ReportField.AVAILABLE_MEM_SIZE,
+            ReportField.BUILD_CONFIG,
+            ReportField.CUSTOM_DATA,
+            ReportField.STACK_TRACE,
+            ReportField.STACK_TRACE_HASH,
+            //ReportField.INITIAL_CONFIGURATION,
+            ReportField.CRASH_CONFIGURATION,
+            //ReportField.DISPLAY,
+            ReportField.USER_COMMENT,
+            ReportField.USER_APP_START_DATE,
+            ReportField.USER_CRASH_DATE,
+            //ReportField.DUMPSYS_MEMINFO,
+            //ReportField.DROPBOX,
+            ReportField.LOGCAT,
+            //ReportField.EVENTSLOG,
+            //ReportField.RADIOLOG,
+            //ReportField.IS_SILENT,
+            ReportField.INSTALLATION_ID,
+            //ReportField.USER_EMAIL,
+            //ReportField.DEVICE_FEATURES,
+            ReportField.ENVIRONMENT,
+            //ReportField.SETTINGS_SYSTEM,
+            //ReportField.SETTINGS_SECURE,
+            //ReportField.SETTINGS_GLOBAL,
+            ReportField.SHARED_PREFERENCES,
+            ReportField.APPLICATION_LOG,
+            ReportField.MEDIA_CODEC_LIST,
+            ReportField.THREAD_DETAILS
+            //ReportField.USER_IP
+        },
+        logcatArguments = { "-t", "100", "-v", "time", "ActivityManager:I", "SQLiteLog:W", AnkiDroidApp.TAG + ":D", "*:S" }
+)
 public class AnkiDroidApp extends Application {
 
     public static final int SDK_VERSION = android.os.Build.VERSION.SDK_INT;
     public static final String LIBANKI_VERSION = "1.2.5";
     public static final String DROPBOX_PUBLIC_DIR = "/dropbox/Public/Anki";
     public static final String APP_NAMESPACE = "http://schemas.android.com/apk/res/com.ichi2.anki";
+    public static final String FEEDBACK_REPORT_ASK = "2";
+    public static final String FEEDBACK_REPORT_NEVER = "1";
+    public static final String FEEDBACK_REPORT_ALWAYS = "0";
+
 
 
     /**
@@ -80,6 +153,7 @@ public class AnkiDroidApp extends Application {
      */
     private static AnkiDroidApp sInstance;
     private static boolean sSyncInProgress = false;
+    private static boolean sDatabaseCorrupt = false;
     private Collection mCurrentCollection;
     private int mAccessThreadCount = 0;
     private static final Lock mLock = new ReentrantLock();
@@ -115,7 +189,7 @@ public class AnkiDroidApp extends Application {
      * The latest package version number that included changes to the preferences that requires handling. All
      * collections being upgraded to (or after) this version must update preferences.
      */
-    public static final int CHECK_PREFERENCES_AT_VERSION = 20200170;
+    public static final int CHECK_PREFERENCES_AT_VERSION = 20400203;
 
 
     /**
@@ -123,8 +197,33 @@ public class AnkiDroidApp extends Application {
      */
     @TargetApi(Build.VERSION_CODES.FROYO)
     @Override
+
     public void onCreate() {
         super.onCreate();
+        // Get preferences
+        SharedPreferences preferences = getSharedPrefs(this);
+
+        // Initialize crash reporting module
+        ACRA.init(this);
+
+        // Setup logging and crash reporting
+        if (BuildConfig.DEBUG) {
+            // Enable verbose error logging and do method tracing to put the Class name as log tag
+            Timber.plant(new Timber.DebugTree());
+            // Don't report crashes, regardless of user setting
+            // note: manually changing crash report mode from within app can re-enable this
+            setAcraReportingMode(FEEDBACK_REPORT_NEVER);
+            // Use a wider logcat filter incase crash reporting manually re-enabled
+            String [] logcatArgs = { "-t", "300", "-v", "long", "ACRA:S"};
+            ACRA.getConfig().setLogcatArguments(logcatArgs);
+        } else {
+            // Disable verbose error logging and use fixed log tag "AnkiDroid"
+            Timber.plant(new ProductionCrashReportingTree());
+            // Enable or disable crash reporting based on user setting
+            setAcraReportingMode(preferences.getString("reportErrorMode", FEEDBACK_REPORT_ASK));
+        }
+        Timber.tag(TAG);
+
 
         if (isNookHdOrHdPlus() && AnkiDroidApp.SDK_VERSION == 15) {
             mCompat = new CompatV15NookHdOrHdPlus();
@@ -148,15 +247,9 @@ public class AnkiDroidApp extends Application {
 
         Connection.setContext(getApplicationContext());
 
-        // Error Reporter
-        CustomExceptionHandler customExceptionHandler = CustomExceptionHandler.getInstance();
-        customExceptionHandler.init(sInstance.getApplicationContext());
-        Thread.setDefaultUncaughtExceptionHandler(customExceptionHandler);
+        // Configure WebView to allow file scheme pages to access cookies.
+        mCompat.enableCookiesForFileSchemePages();
 
-		// Configure WebView to allow file scheme pages to access cookies.
-		mCompat.enableCookiesForFileSchemePages();
-		
-        SharedPreferences preferences = getSharedPrefs(this);
         sInstance.mHooks = new Hooks(preferences);
         setLanguage(preferences.getString(Preferences.LANGUAGE, ""));
         // Assign some default settings if necessary
@@ -194,12 +287,12 @@ public class AnkiDroidApp extends Application {
     private boolean isNookHdOrHdPlus() {
         return isNookHd() || isNookHdPlus();
     }
-    
+
     private boolean isNookHdPlus() {
         return android.os.Build.BRAND.equals("NOOK") && android.os.Build.PRODUCT.equals("HDplus")
                 && android.os.Build.DEVICE.equals("ovation");
     }
-    
+
     private boolean isNookHd () {
         return android.os.Build.MODEL.equalsIgnoreCase("bntv400") && android.os.Build.BRAND.equals("NOOK");
     }
@@ -214,10 +307,14 @@ public class AnkiDroidApp extends Application {
         return android.os.Build.BRAND.equalsIgnoreCase("chromium") || android.os.Build.MANUFACTURER.equalsIgnoreCase("chromium");
     }
 
+    public static boolean isKindle() {
+        return Build.BRAND.equalsIgnoreCase("amazon") || Build.MANUFACTURER.equalsIgnoreCase("amazon");
+    }
+
 
     /**
      * Convenience method for accessing Shared preferences
-     * 
+     *
      * @param context Context to get preferences for.
      * @return A SharedPreferences object for this instance of the app.
      */
@@ -264,7 +361,7 @@ public class AnkiDroidApp extends Application {
         try {
             new File(decksDirectory.getAbsolutePath() + "/.nomedia").createNewFile();
         } catch (IOException e) {
-            Log.e(AnkiDroidApp.TAG, "Nomedia file could not be created");
+            Timber.e("Nomedia file could not be created");
         }
         createNoMediaFileIfMissing(decksDirectory);
     }
@@ -276,7 +373,7 @@ public class AnkiDroidApp extends Application {
             try {
                 mediaFile.createNewFile();
             } catch (IOException e) {
-                Log.e(AnkiDroidApp.TAG, "Nomedia file could not be created in path " + decksDirectory.getAbsolutePath());
+                Timber.e("Nomedia file could not be created in path %s", decksDirectory.getAbsolutePath());
             }
         }
     }
@@ -308,7 +405,7 @@ public class AnkiDroidApp extends Application {
 
     /**
      * Get package name as defined in the manifest.
-     * 
+     *
      * @return the package name.
      */
     public static String getAppName() {
@@ -319,7 +416,7 @@ public class AnkiDroidApp extends Application {
             PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
             pkgName = context.getString(pInfo.applicationInfo.labelRes);
         } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "Couldn't find package named " + context.getPackageName(), e);
+            Timber.e(e, "Couldn't find package named %s", context.getPackageName());
         }
 
         return pkgName;
@@ -328,18 +425,20 @@ public class AnkiDroidApp extends Application {
 
     /**
      * Get the package versionName as defined in the manifest.
-     * 
+     *
      * @return the package version.
      */
     public static String getPkgVersionName() {
         String pkgVersion = "?";
-        Context context = sInstance.getApplicationContext();
+        if (sInstance != null) {
+            Context context = sInstance.getApplicationContext();
 
-        try {
-            PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-            pkgVersion = pInfo.versionName;
-        } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "Couldn't find package named " + context.getPackageName(), e);
+            try {
+                PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+                pkgVersion = pInfo.versionName;
+            } catch (PackageManager.NameNotFoundException e) {
+                Timber.e(e, "Couldn't find package named %s", context.getPackageName());
+            }
         }
 
         return pkgVersion;
@@ -348,7 +447,7 @@ public class AnkiDroidApp extends Application {
 
     /**
      * Get the package versionCode as defined in the manifest.
-     * 
+     *
      * @return
      */
     public static int getPkgVersionCode() {
@@ -357,7 +456,7 @@ public class AnkiDroidApp extends Application {
             PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
             return pInfo.versionCode;
         } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "Couldn't find package named " + context.getPackageName(), e);
+            Timber.e(e, "Couldn't find package named %s", context.getPackageName());
         }
         return 0;
     }
@@ -365,7 +464,7 @@ public class AnkiDroidApp extends Application {
 
     /**
      * Get the DropBox folder
-     * 
+     *
      * @return the absolute path to the DropBox public folder, or null if it is not found
      */
     public static String getDropboxDir() {
@@ -377,28 +476,31 @@ public class AnkiDroidApp extends Application {
     }
 
 
-    public static void saveExceptionReportFile(String origin, String additionalInfo) {
+    public static void sendExceptionReport(String origin, String additionalInfo) {
         try {
             throw new AnkiDroidErrorReportException();
         } catch (AnkiDroidErrorReportException e) {
-            saveExceptionReportFile(e, origin, additionalInfo);
+            sendExceptionReport(e, origin, additionalInfo);
         }
     }
-    
-    
-    public static void saveExceptionReportFile(Throwable e, String origin) {
-        saveExceptionReportFile(e, origin, null);
+
+
+    public static void sendExceptionReport(Throwable e, String origin) {
+        sendExceptionReport(e, origin, null);
     }
-    
-    
-    public static void saveExceptionReportFile(Throwable e, String origin, String additionalInfo) {
-        CustomExceptionHandler.getInstance().uncaughtException(null, e, origin, additionalInfo);
+
+
+    public static void sendExceptionReport(Throwable e, String origin, String additionalInfo) {
+        //CustomExceptionHandler.getInstance().uncaughtException(null, e, origin, additionalInfo);
+        ACRA.getErrorReporter().putCustomData("origin", origin);
+        ACRA.getErrorReporter().putCustomData("additionalInfo", additionalInfo);
+        ACRA.getErrorReporter().handleException(e);
     }
 
 
     /**
      * Sets the user language.
-     * 
+     *
      * @param localeCode The locale code of the language to set
      * @return True if the language has changed, else false
      */
@@ -449,7 +551,7 @@ public class AnkiDroidApp extends Application {
 
     public static synchronized Collection openCollection(String path, boolean force) {
         mLock.lock();
-        Log.i(AnkiDroidApp.TAG, "openCollection: " + path);
+        Timber.i("openCollection: %s", path);
         try {
             if (!colIsOpen() || !sInstance.mCurrentCollection.getPath().equals(path) || force) {
                 if (colIsOpen()) {
@@ -459,10 +561,10 @@ public class AnkiDroidApp extends Application {
                 }
                 sInstance.mCurrentCollection = Storage.Collection(path, false, true);
                 sInstance.mAccessThreadCount++;
-                Log.i(AnkiDroidApp.TAG, "Access to collection is requested: collection has been opened");
+                Timber.d("Access to collection is requested: collection has been opened");
             } else {
                 sInstance.mAccessThreadCount++;
-                Log.i(AnkiDroidApp.TAG, "Access to collection is requested: collection has not been reopened (count: " + sInstance.mAccessThreadCount + ")");
+                Timber.d("Access to collection is requested: collection has not been reopened (count: %d)", sInstance.mAccessThreadCount);
             }
             return sInstance.mCurrentCollection;
         } finally {
@@ -478,12 +580,12 @@ public class AnkiDroidApp extends Application {
 
     public static void closeCollection(boolean save) {
         mLock.lock();
-        Log.i(AnkiDroidApp.TAG, "closeCollection");
+        Timber.i("closeCollection");
         try {
             if (sInstance.mAccessThreadCount > 0) {
                 sInstance.mAccessThreadCount--;
             }
-            Log.i(AnkiDroidApp.TAG, "Access to collection has been closed: (count: " + sInstance.mAccessThreadCount + ")");
+            Timber.d("Access to collection has been closed: (count: %d)", sInstance.mAccessThreadCount);
             if (sInstance.mAccessThreadCount == 0 && sInstance.mCurrentCollection != null) {
                 Collection col = sInstance.mCurrentCollection;
                 sInstance.mCurrentCollection = null;
@@ -506,7 +608,7 @@ public class AnkiDroidApp extends Application {
     public static void resetAccessThreadCount() {
         sInstance.mAccessThreadCount = 0;
         sInstance.mCurrentCollection = null;
-        Log.i(AnkiDroidApp.TAG, "Access has been reset to 0");
+        Timber.d("Access has been reset to 0");
     }
 
     public static void setStoredDialogHandlerMessage(Message msg) {
@@ -523,5 +625,104 @@ public class AnkiDroidApp extends Application {
 
     public static boolean getSyncInProgress() {
         return sSyncInProgress;
+    }
+
+    public static void setDbCorruptedFlag() {
+        sDatabaseCorrupt = true;
+    }
+
+    public static boolean getDbCorruptedFlag() {
+        return sDatabaseCorrupt;
+    }
+
+
+    /**
+     * Set the reporting mode for ACRA based on the value of the reportErrorMode preference
+     * @param value value of reportErrorMode preference
+     */
+    public void setAcraReportingMode(String value) {
+        SharedPreferences.Editor editor = ACRA.getACRASharedPreferences().edit();
+        // Set the ACRA disable value
+        if (value.equals(FEEDBACK_REPORT_NEVER)) {
+            editor.putBoolean("acra.disable", true);
+        } else {
+            editor.putBoolean("acra.disable", false);
+            // Switch between auto-report via toast and manual report via dialog
+            try {
+                if (value.equals(FEEDBACK_REPORT_ALWAYS)) {
+                    ACRA.getConfig().setMode(ReportingInteractionMode.TOAST);
+                    ACRA.getConfig().setResToastText(R.string.feedback_auto_toast_text);
+                } else if (value.equals(FEEDBACK_REPORT_ASK)) {
+                    ACRA.getConfig().setMode(ReportingInteractionMode.DIALOG);
+                    ACRA.getConfig().setResToastText(R.string.feedback_manual_toast_text);
+                }
+            } catch (ACRAConfigurationException e) {
+                Timber.e("Could not set ACRA report mode");
+            }
+        }
+        editor.commit();
+    }
+
+    /** A tree which logs necessary data for crash reporting. */
+    public static class ProductionCrashReportingTree extends Timber.HollowTree {
+        private static final ThreadLocal<String> NEXT_TAG = new ThreadLocal<String>();
+        private static final Pattern ANONYMOUS_CLASS = Pattern.compile("\\$\\d+$");
+
+        @Override public void e(String message, Object... args) {
+            Log.e(TAG, createTag() + "/ " + formatString(message, args)); // Just add to the log.
+        }
+
+        @Override public void e(Throwable t, String message, Object... args) {
+            Log.e(TAG, createTag() + "/ " + formatString(message, args), t); // Just add to the log.
+        }
+
+        @Override public void w(String message, Object... args) {
+            Log.w(TAG, createTag() + "/ " + formatString(message, args)); // Just add to the log.
+        }
+
+        @Override public void w(Throwable t, String message, Object... args) {
+            Log.w(TAG, createTag() + "/ " + formatString(message, args), t); // Just add to the log.
+        }
+
+        @Override public void i(String message, Object... args) {
+            // Skip createTag() to improve  performance. message should be descriptive enough without it
+            Log.i(TAG, formatString(message, args)); // Just add to the log.
+        }
+
+        @Override public void i(Throwable t, String message, Object... args) {
+            // Skip createTag() to improve  performance. message should be descriptive enough without it
+            Log.i(TAG, formatString(message, args), t); // Just add to the log.
+        }
+
+        // Ignore logs below INFO level --> Non-overridden methods go to HollowTree
+
+        static String formatString(String message, Object... args) {
+            // If no varargs are supplied, treat it as a request to log the string without formatting.
+            try {
+                return args.length == 0 ? message : String.format(message, args);
+            } catch (Exception e) {
+                return message;
+            }
+        }
+
+        private static String createTag() {
+            String tag = NEXT_TAG.get();
+            if (tag != null) {
+                NEXT_TAG.remove();
+                return tag;
+            }
+
+            StackTraceElement[] stackTrace = new Throwable().getStackTrace();
+            if (stackTrace.length < 6) {
+                throw new IllegalStateException(
+                        "Synthetic stacktrace didn't have enough elements: are you using proguard?");
+            }
+            tag = stackTrace[5].getClassName();
+            Matcher m = ANONYMOUS_CLASS.matcher(tag);
+            if (m.find()) {
+                tag = m.replaceAll("");
+            }
+            return tag.substring(tag.lastIndexOf('.') + 1);
+        }
     }
 }

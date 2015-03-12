@@ -25,7 +25,7 @@ public class LanguageUtil {
 
     /** A list of all languages supported by AnkiDroid */
     public static final String[] APP_LANGUAGES = { "ar", "bg", "ca", "cs", "de", "el", "es-AR", "es-ES", "et", "fa",
-            "fi", "fr", "gl", "hi", "hu", "id", "it", "ja", "ko", "lt", "nl", "no", "pl", "pt_PT", "pt_BR", "ro", "ru",
+            "fi", "fr", "got", "gl", "hi", "hu", "id", "it", "ja", "ko", "lt", "nl", "no", "pl", "pt_PT", "pt_BR", "ro", "ru",
             "sk", "sl", "sr", "sv", "th", "tr", "uk", "vi", "zh_CN", "zh_TW", "en" };
 
 
@@ -40,7 +40,11 @@ public class LanguageUtil {
         if (TextUtils.isEmpty(localeCode)) {
             locale = Locale.getDefault();
         } else if (localeCode.length() > 2) {
-            locale = new Locale(localeCode.substring(0, 2), localeCode.substring(3, 5));
+            try {
+                locale = new Locale(localeCode.substring(0, 2), localeCode.substring(3, 5));
+            } catch (StringIndexOutOfBoundsException e) {
+                locale = new Locale(localeCode);
+            }
         } else {
             locale = new Locale(localeCode);
         }

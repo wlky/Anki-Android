@@ -18,10 +18,8 @@
 package com.ichi2.libanki;
 
 import android.database.Cursor;
-import android.util.Log;
-import android.util.Pair;
 
-import com.ichi2.anki.AnkiDroidApp;
+import android.util.Pair;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -32,6 +30,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
 
 public class Note implements Cloneable {
 
@@ -94,8 +93,7 @@ public class Note implements Cloneable {
             cursor = mCol.getDb().getDatabase()
                     .rawQuery("SELECT guid, mid, mod, usn, tags, flds, flags, data FROM notes WHERE id = " + mId, null);
             if (!cursor.moveToFirst()) {
-                Log.w(AnkiDroidApp.TAG, "Notes.load(): No result from query.");
-                return;
+                throw new RuntimeException("Notes.load(): No result from query for note " + mId);
             }
             mGuId = cursor.getString(0);
             mMid = cursor.getLong(1);

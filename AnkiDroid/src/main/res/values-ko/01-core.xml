@@ -152,6 +152,7 @@
 그러면 단기적으로 공부할 양이 증가한다는 것을 명심하세요.
 </string>
   <string name="studyoptions_congrats_custom">평상시 일정을 넘어 더 공부하려면, 맞춤 학습 버튼을 누르십시오.</string>
+  <string name="studyoptions_no_cards_due">No cards are due yet.</string>
   <plurals name="studyoptions_congrats_message">
     <item quantity="one">Tomorrow there will be: %1$d card to review and %2$s.\n Estimated time: %3$s</item>
     <item quantity="other">내일의 학습 일정: 복습할 카드 %1$d개 및 %2$s.\n 예상 소요 시간: %3$s</item>
@@ -181,5 +182,18 @@
   <string name="confirm">확정</string>
   <string name="internet">인터넷</string>
   <string name="pc">PC</string>
+  <string name="nothing">Nothing</string>
   <string name="title_activity_graphical_activity">Statistical chart</string>
+  <string name="title_activity_template_editor">Card Types for %s</string>
+  <string name="card_template_editor_front">Front Template</string>
+  <string name="card_template_editor_back">Back Template</string>
+  <string name="card_template_editor_styling">Styling</string>
+  <string name="card_template_editor_menu_add_reverse">Add reverse</string>
+  <string name="card_template_editor_menu_delete">Delete</string>
+  <string name="card_template_editor_cant_delete">At least one card type is required.</string>
+  <plurals name="card_template_editor_confirm_delete">
+    <item quantity="one">Delete the \'%2$s\' card type, and its %1$d card?</item>
+    <item quantity="other">Delete the \'%2$s\' card type, and its %1$d cards?</item>
+  </plurals>
+  <string name="card_template_editor_would_delete_note">Removing this card type would cause one or more notes to be deleted. Please create a new card type first.</string>
 </resources>

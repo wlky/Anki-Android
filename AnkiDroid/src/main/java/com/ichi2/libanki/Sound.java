@@ -27,7 +27,7 @@ import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.MediaStore;
-import android.util.Log;
+
 import android.view.Display;
 import android.view.WindowManager;
 import android.widget.VideoView;
@@ -42,6 +42,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import timber.log.Timber;
 
 /**
  * Class used to parse, load and play sound files on AnkiDroid.
@@ -180,7 +182,7 @@ public class Sound {
         StringBuilder stringBuilder = new StringBuilder();
         String contentLeft = content;
 
-        Log.i(AnkiDroidApp.TAG, "expandSounds");
+        Timber.d("expandSounds");
 
         Matcher matcher = sSoundPattern.matcher(content);
         // While there is matches of the pattern for sound markers
@@ -207,7 +209,7 @@ public class Sound {
                         + "<span style='padding:5px;'>"+ button
                         + "</span></a>");
             contentLeft = contentLeft.substring(markerStart + soundMarker.length());
-            Log.i(AnkiDroidApp.TAG, "Content left = " + contentLeft);
+            Timber.d("Content left = %s", contentLeft);
         }
 
         // unused code related to tts support taken out after v2.2alpha55
@@ -223,8 +225,7 @@ public class Sound {
      * Plays the sounds for the indicated sides
      * @param qa -- One of Sound.SOUNDS_QUESTION, Sound.SOUNDS_ANSWER, or Sound.SOUNDS_QUESTION_AND_ANSWER
      */
-    public static void playSounds(int qa, WeakReference<Activity> activityRef) {
-        sCallingActivity = activityRef;
+    public static void playSounds(int qa) {
         // If there are sounds to play for the current card, start with the first one
         if (sSoundPaths != null && sSoundPaths.containsKey(qa)) {
             playSound(sSoundPaths.get(qa).get(0), new PlayAllCompletionListener(qa));
@@ -253,7 +254,8 @@ public class Sound {
      */
     @SuppressLint("NewApi")
     public static void playSound(String soundPath, OnCompletionListener playAllListener, final VideoView videoView) {
-        Log.i(AnkiDroidApp.TAG, "Playing " + soundPath + " has listener? " + Boolean.toString(playAllListener != null));
+        Timber.d("Playing %s has listener? %b", soundPath, playAllListener != null);
+        Uri soundUri = Uri.parse(soundPath);
 
         if (soundPath.substring(0, 3).equals("tts")) {
             // TODO: give information about did
@@ -263,20 +265,14 @@ public class Sound {
             // Check if file is video
             final boolean isVideo;
             if (AnkiDroidApp.SDK_VERSION > 7){
-                String realPath;
-                try {
-                    realPath = (new File(soundPath.replace("file:///",""))).getCanonicalPath();
-                } catch (IOException e1) {
-                    realPath = soundPath;
-                }
-                isVideo = ThumbnailUtils.createVideoThumbnail(realPath, MediaStore.Images.Thumbnails.MINI_KIND) != null;
+                isVideo = ThumbnailUtils.createVideoThumbnail(soundUri.getPath(), MediaStore.Images.Thumbnails.MINI_KIND) != null;
             } else {
                 // Don't bother supporting video on Android 2.1
                 isVideo = false;
             }
             // If video file but no SurfaceHolder provided then ask 
             // AbstractFlashcardViewer to provide a VideoView holder
-            if (isVideo && videoView == null && sCallingActivity.get() != null) {
+            if (isVideo && videoView == null && sCallingActivity != null && sCallingActivity.get() != null) {
                 sPlayAllListener = playAllListener;
                 ((AbstractFlashcardViewer) sCallingActivity.get()).playVideo(soundPath);
                 return;
@@ -303,7 +299,6 @@ public class Sound {
                     });
                 }
                 // Setup the MediaPlayer
-                Uri soundUri = Uri.parse(soundPath);
                 sMediaPlayer.setDataSource(AnkiDroidApp.getInstance().getApplicationContext(),
                                            soundUri);
                 sMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
@@ -319,7 +314,7 @@ public class Sound {
                 sMediaPlayer.prepareAsync();
                 AnkiDroidApp.getCompat().requestAudioFocus(sAudioManager);
             } catch (Exception e) {
-                Log.e(AnkiDroidApp.TAG, "playSounds - Error reproducing sound " + soundPath + " = " + e.getMessage());
+                Timber.e(e, "playSounds - Error reproducing sound %s", soundPath);
                 releaseSound();
             }
         }
@@ -348,7 +343,9 @@ public class Sound {
     }
 
     public static void notifyConfigurationChanged(VideoView videoView) {
-        configureVideo(videoView, sMediaPlayer.getVideoWidth(), sMediaPlayer.getVideoHeight());
+        if (sMediaPlayer != null) {
+            configureVideo(videoView, sMediaPlayer.getVideoWidth(), sMediaPlayer.getVideoHeight());
+        }
     }
 
     /**
@@ -427,6 +424,14 @@ public class Sound {
     private static boolean hasURIScheme(String path) {
         Matcher uriMatcher = sUriPattern.matcher(path.trim());
         return uriMatcher.matches() && uriMatcher.group(2) != null;
+    }
+
+    /**
+     * Set the context for the calling activity (necessary for playing videos)
+     * @param activityRef
+     */
+    public static void setContext(WeakReference<Activity> activityRef) {
+        sCallingActivity = activityRef;
     }
 
     public static OnCompletionListener getMediaCompletionListener() {

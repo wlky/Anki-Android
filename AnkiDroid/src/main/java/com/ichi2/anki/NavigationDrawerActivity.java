@@ -38,6 +38,10 @@ import android.widget.TextView;
 import com.ichi2.anim.ActivityTransitionAnimation;
 import com.ichi2.anki.stats.AnkiStatsTaskHandler;
 
+import java.util.Locale;
+
+import timber.log.Timber;
+
 
 public class NavigationDrawerActivity extends AnkiActivity {
     
@@ -107,6 +111,7 @@ public class NavigationDrawerActivity extends AnkiActivity {
     private class DrawerItemClickListener implements ListView.OnItemClickListener {
         @Override
         public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            Timber.i("Item %d selected in navigation drawer", position);
             selectNavigationItem(position);
         }
     }
@@ -153,18 +158,52 @@ public class NavigationDrawerActivity extends AnkiActivity {
                 break;
             
             case DRAWER_HELP:
-                Intent helpIntent = new Intent("android.intent.action.VIEW", Uri.parse(getResources().getString(R.string.link_manual)));
+                Intent helpIntent = new Intent("android.intent.action.VIEW", Uri.parse(getManualUrl()));
                 startActivityWithoutAnimation(helpIntent);
                 break;
                 
             case DRAWER_FEEDBACK:
-                Intent feedbackIntent = new Intent("android.intent.action.VIEW", Uri.parse(getResources().getString(R.string.link_help)));
+                Intent feedbackIntent = new Intent("android.intent.action.VIEW", Uri.parse(getFeedbackUrl()));
                 startActivityWithoutAnimation(feedbackIntent);
                 break;
             
             default:
                 break;
         }
+    }
+
+    /**
+     * Get the url for the feedback page
+     * @return
+     */
+    private String getFeedbackUrl() {
+        if (isCurrentLanguage("ja")) {
+            return getResources().getString(R.string.link_help_ja);
+        } else {
+            return getResources().getString(R.string.link_help);
+        }
+    }
+
+    /**
+     * Get the url for the manual
+     * @return
+     */
+    private String getManualUrl() {
+        if (isCurrentLanguage("ja")) {
+            return getResources().getString(R.string.link_manual_ja);
+        } else {
+            return getResources().getString(R.string.link_manual);
+        }
+    }
+
+    /**
+     * Check whether l is the currently set language code
+     * @param l ISO2 language code
+     * @return
+     */
+    private boolean isCurrentLanguage(String l) {
+        String pref = AnkiDroidApp.getSharedPrefs(this).getString(Preferences.LANGUAGE, "");
+        return pref.equals(l) || pref.equals("") && Locale.getDefault().getLanguage().equals(l);
     }
     
     protected void deselectAllNavigationItems() {

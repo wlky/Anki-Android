@@ -21,8 +21,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.ichi2.anki"
     android:installLocation="auto"
-    android:versionCode="20400138"
-    android:versionName="2.4alpha38" >
+    android:versionCode="20400300"
+    android:versionName="2.4" >
 
     <!--
         The version number is of the form:
@@ -47,9 +47,6 @@
         This ensures the correct ordering between the various types of releases (dev < alpha < beta < release) which is
         needed for upgrades to be offered correctly.
     -->
-    <uses-sdk
-        android:minSdkVersion="7"
-        android:targetSdkVersion="19" />
 
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -76,7 +73,8 @@
         android:icon="@drawable/anki"
         android:label="@string/app_name"
         android:theme="@style/Theme_White"
-        android:windowSoftInputMode="adjustResize" >
+        android:windowSoftInputMode="adjustResize"
+        android:largeHeap="true">
         <activity
             android:name="com.ichi2.anki.IntentHandler"
             android:configChanges="keyboardHidden|orientation|screenSize|locale"
@@ -195,10 +193,11 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
-        <activity
-            android:name="com.ichi2.anki.Feedback"
-            android:configChanges="locale"
-            android:label="@string/feedback_title" />
+        <activity android:name="com.ichi2.anki.dialogs.AnkiDroidCrashReportDialog"
+            android:theme="@style/Theme.CrashReportDialog"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:finishOnTaskLaunch="true" />
         <activity
             android:name="com.ichi2.anki.Statistics"
             android:theme="@style/Theme_White_Statistics"
