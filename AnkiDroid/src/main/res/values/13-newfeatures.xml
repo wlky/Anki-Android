@@ -2,9 +2,6 @@
 <resources>
     <!-- Be careful with a reordering. It will probably lead to a deletion of already translated strings on crowdin and should therefore only be done only immediately before release -->
     <string-array name="new_version_features">
-<<<<<<< HEAD
-        <item>See the commit history on github for changelog of development version</item>
-=======
         <item>Move "preview" feature to browser</item>
         <item>Add ability to change note type of existing flashcards</item>
         <item>Add ability to view and delete card templates</item>
@@ -16,6 +13,5 @@
         <item>Add support for Chromebooks</item>
         <item>New crash reporting system</item>
         <item>Bug fixes</item>
->>>>>>> upstream/master
     </string-array>
 </resources>
