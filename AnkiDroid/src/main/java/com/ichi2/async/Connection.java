@@ -24,7 +24,6 @@ import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 
-
 import com.ichi2.anki.AnkiDroidApp;
 import com.ichi2.anki.R;
 import com.ichi2.anki.exception.UnknownHttpResponseException;
@@ -48,7 +47,6 @@ import org.json.JSONObject;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileFilter;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,6 +62,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -83,7 +82,6 @@ public class Connection extends BaseAsyncTask<Connection.Payload, Object, Connec
     public static final int TASK_TYPE_DOWNLOAD_SHARED_DECK = 8;
     public static final int CONN_TIMEOUT = 30000;
 
-    private static Context sContext;
 
     private static Connection sInstance;
     private TaskListener mListener;
@@ -408,7 +406,7 @@ public class Connection extends BaseAsyncTask<Connection.Payload, Object, Connec
         }
         String path = AnkiDroidApp.getCollectionPath();
         try {
-            AnkiDroidApp.setSyncInProgress(true);
+            AnkiDroidApp.sSyncInProgressFlag = true;
             HttpSyncer server = new RemoteServer(this, hkey);
             Syncer client = new Syncer(col, server);
 
@@ -532,7 +530,7 @@ public class Connection extends BaseAsyncTask<Connection.Payload, Object, Connec
                     }
                 } catch (UnsupportedSyncException e) {
                     mediaError = AnkiDroidApp.getAppResources().getString(R.string.sync_media_unsupported);
-                    AnkiDroidApp.getSharedPrefs(sContext).edit().putBoolean("syncFetchesMedia", false).commit();
+                    AnkiDroidApp.getSharedPrefs(AnkiDroidApp.getInstance().getApplicationContext()).edit().putBoolean("syncFetchesMedia", false).commit();
                     AnkiDroidApp.sendExceptionReport(e, "doInBackgroundSync-mediaSync");
                 } catch (RuntimeException e) {
                     if (timeoutOccured(e)) {
@@ -580,7 +578,7 @@ public class Connection extends BaseAsyncTask<Connection.Payload, Object, Connec
             // Close collection to roll back any sync failures and
             Timber.d("doInBackgroundSync -- closing collection on outer finally statement");
             col.close(false);
-            AnkiDroidApp.setSyncInProgress(false);
+            AnkiDroidApp.sSyncInProgressFlag = false;
             Timber.d("doInBackgroundSync -- reopening collection on outer finally statement");
             AnkiDroidApp.openCollection(AnkiDroidApp.getCollectionPath());
         }
@@ -828,7 +826,7 @@ public class Connection extends BaseAsyncTask<Connection.Payload, Object, Connec
 
 
     public static boolean isOnline() {
-        ConnectivityManager cm = (ConnectivityManager) sContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        ConnectivityManager cm = (ConnectivityManager) AnkiDroidApp.getInstance().getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
 
         if (cm.getActiveNetworkInfo() != null) {
             return cm.getActiveNetworkInfo().isConnectedOrConnecting();
@@ -837,10 +835,6 @@ public class Connection extends BaseAsyncTask<Connection.Payload, Object, Connec
         }
     }
 
-
-    public static void setContext(Context applicationContext) {
-        sContext = applicationContext;
-    }
 
     public static interface TaskListener {
         public void onPreExecute();
@@ -888,13 +882,6 @@ public class Connection extends BaseAsyncTask<Connection.Payload, Object, Connec
         }
     }
 
-
-    public static final class OldAnkiDeckFilter implements FileFilter {
-        @Override
-        public boolean accept(File pathname) {
-            return pathname.isFile() && pathname.getName().endsWith(".anki");
-        }
-    }
 
     public class CancelCallback {
         private WeakReference<ThreadSafeClientConnManager> mConnectionManager = null;

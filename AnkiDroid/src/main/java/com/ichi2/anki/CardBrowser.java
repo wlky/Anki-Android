@@ -171,6 +171,11 @@ public class CardBrowser extends NavigationDrawerActivity implements ActionBar.O
 
         @Override
         public void onClick(DialogInterface dialog, int which) {
+            if (getCards().size() == 0) {
+                // Don't do anything if mCards empty
+                searchCards();
+                return;
+            }
             switch (which) {
                 case CONTEXT_MENU_MARK:
                     DeckTask.launchDeckTask(DeckTask.TASK_TYPE_MARK_CARD,
@@ -556,9 +561,17 @@ public class CardBrowser extends NavigationDrawerActivity implements ActionBar.O
             DeckTask.launchDeckTask(DeckTask.TASK_TYPE_UPDATE_FACT, mUpdateCardHandler,
                     new DeckTask.TaskData(getCol().getSched(), sCardBrowserCard, false));
         } else if (requestCode == ADD_NOTE && resultCode == RESULT_OK) {
-            mSearchTerms = mSearchView.getQuery().toString();
-            // Both toLowerCase(Locale.US) and toLowerCase(Locale.getDefault()) would be wrong here. Keywords are pulled
-            // toLowerCase(Locale.US) later.
+            if (mSearchView != null) {
+                mSearchTerms = mSearchView.getQuery().toString();
+                searchCards();
+            } else {
+                Timber.w("Note was added from browser and on return mSearchView == null");
+            }
+
+        }
+
+        if (requestCode == EDIT_CARD &&  data!=null && data.hasExtra("reloadRequired")) {
+            // if reloadRequired flag was sent from note editor then reload card list
             searchCards();
         }
     }
@@ -707,6 +720,11 @@ public class CardBrowser extends NavigationDrawerActivity implements ActionBar.O
                 }
                 break;
             case DIALOG_CONTEXT_MENU:
+                if (getCards().size()==0) {
+                    // Don't do anything if mCards empty
+                    Timber.e("Context menu opened for a card, but mCards is empty");
+                    return;
+                }
                 HashMap<String, String> card = getCards().get(mPositionInCardsList);
                 int flags = Integer.parseInt(card.get("flags"));
                 if (flags == 2 || flags == 3) {

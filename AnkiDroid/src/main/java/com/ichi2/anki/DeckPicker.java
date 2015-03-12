@@ -110,9 +110,6 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
 
     public static final int CRAM_DECK_FRAGMENT = -1;
 
-    public static final String UPGRADE_OLD_COLLECTION_RENAME = "oldcollection.apkg";
-    public static final String IMPORT_REPLACE_COLLECTION_NAME = "collection.apkg";
-
     private String mImportPath;
 
     public static final String EXTRA_START = "start";
@@ -144,9 +141,7 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
     // private static final int LOG_IN = 13;
     private static final int BROWSE_CARDS = 14;
     private static final int ADD_SHARED_DECKS = 15;
-    private static final int LOG_IN_FOR_SHARED_DECK = 16;
     private static final int ADD_CRAM_DECK = 17;
-    //private static final int SHOW_INFO_UPGRADE_DECKS = 18;
     private static final int REQUEST_REVIEW = 19;
 
     private StyledProgressDialog mProgressDialog;
@@ -162,7 +157,6 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
 
     private BroadcastReceiver mUnmountReceiver = null;
 
-    private String mPrefDeckPath = null;
     private long mContextMenuDid;
 
     private EditText mDialogEditText;
@@ -246,11 +240,11 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
         @Override
         public void onPostExecute(DeckTask.TaskData result) {
             String message = "";
+            Resources res = getResources();
             if (mProgressDialog != null && mProgressDialog.isShowing()) {
                 mProgressDialog.dismiss();
             }
             if (result != null && result.getBoolean()) {
-                Resources res = getResources();
                 int count = result.getInt();
                 if (count < 0) {
                     if (count == -2) {
@@ -266,7 +260,7 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
                     updateDecksList((TreeSet<Object[]>) info[0], (Integer) info[1], (Integer) info[2]);
                 }
             } else {
-                handleDbError();
+                showSimpleMessageDialog(res.getString(R.string.import_log_error));
             }
             // delete temp file if necessary and reset import path so that it's not incorrectly imported next time
             // Activity starts
@@ -401,7 +395,7 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
 
         setTitle(getResources().getString(R.string.app_name));
 
-        SharedPreferences preferences = restorePreferences();
+        SharedPreferences preferences = AnkiDroidApp.getSharedPrefs(getBaseContext());
 
         View mainView = getLayoutInflater().inflate(R.layout.deck_picker, null);
         setContentView(mainView);
@@ -519,20 +513,25 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
         if (mShowShowcaseView && colOpen() && getCol().isEmpty() && mDeckList!= null && mDeckList.size() <=1) {
             mShowShowcaseView = false;
             final Resources res = getResources();
-            ActionItemTarget target = new ActionItemTarget(this, R.id.action_add_decks);
-            mShowcaseDialog = new ShowcaseView.Builder(this).setTarget(target)
-                    .setContentTitle(res.getString(R.string.studyoptions_welcome_title))
-                    .setStyle(R.style.ShowcaseView_Light).setShowcaseEventListener(this)
-                    .setOnClickListener(new OnClickListener() {
-                        @Override
-                        public void onClick(View v) {
-                            mShowcaseDialog.hide();
-                            Intent helpIntent = new Intent("android.intent.action.VIEW", Uri.parse(res
-                                    .getString(R.string.link_manual_getting_started)));
-                            startActivityWithoutAnimation(helpIntent);
-                        }
-                    }).setContentText(res.getString(R.string.add_content_showcase_text)).hideOnTouchOutside().build();
-            mShowcaseDialog.setButtonText(getResources().getString(R.string.help_title));
+            try {
+                ActionItemTarget target = new ActionItemTarget(this, R.id.action_add_decks);
+                mShowcaseDialog = new ShowcaseView.Builder(this).setTarget(target)
+                        .setContentTitle(res.getString(R.string.studyoptions_welcome_title))
+                        .setStyle(R.style.ShowcaseView_Light).setShowcaseEventListener(this)
+                        .setOnClickListener(new OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                mShowcaseDialog.hide();
+                                Intent helpIntent = new Intent("android.intent.action.VIEW", Uri.parse(res
+                                        .getString(R.string.link_manual_getting_started)));
+                                startActivityWithoutAnimation(helpIntent);
+                            }
+                        }).setContentText(res.getString(R.string.add_content_showcase_text)).hideOnTouchOutside().build();
+                mShowcaseDialog.setButtonText(getResources().getString(R.string.help_title));
+            } catch (Exception e) {
+                Timber.e(e, "Error showing ShowcaseView");
+                Themes.showThemedToast(this, res.getString(R.string.add_content_showcase_text), false);
+            }
         } else if (mShowcaseDialog != null && colOpen() && !getCol().isEmpty()) {
             hideShowcaseView();
         }
@@ -695,8 +694,6 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
         } else if (requestCode == REPORT_FEEDBACK && resultCode == RESULT_OK) {
         } else if (requestCode == LOG_IN_FOR_SYNC && resultCode == RESULT_OK) {
             sync();
-        } else if (requestCode == LOG_IN_FOR_SHARED_DECK && resultCode == RESULT_OK) {
-            addSharedDeck();
         } else if (requestCode == ADD_SHARED_DECKS) {
             if (intent != null) {
                 mImportPath = intent.getStringExtra("importPath");
@@ -865,18 +862,17 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
         startActivityForResultWithAnimation(intent, ADD_NOTE, ActivityTransitionAnimation.LEFT);
     }
 
-    private SharedPreferences restorePreferences() {
-        SharedPreferences preferences = AnkiDroidApp.getSharedPrefs(getBaseContext());
-        mPrefDeckPath = AnkiDroidApp.getCurrentAnkiDroidDirectory();
-        return preferences;
-    }
-
 
     private void showStartupScreensAndDialogs(SharedPreferences preferences, int skip) {
         if (!AnkiDroidApp.isSdCardMounted()) {
-            // SD Card mounted
+            // SD Card not mounted
             showSdCardNotMountedDialog();
-        } else if (!BackupManager.enoughDiscSpace(mPrefDeckPath)) {
+        } else if (!AnkiDroidApp.isCurrentAnkiDroidDirAccessible()) {
+            // AnkiDroid directory inaccessible
+            Intent i = new Intent(this, Preferences.class);
+            startActivityWithoutAnimation(i);
+            Themes.showThemedToast(this, getResources().getString(R.string.directory_inaccessible), false);
+        } else if (!BackupManager.enoughDiscSpace(AnkiDroidApp.getCurrentAnkiDroidDirectory())) {
             // Not enough space to do backup
             showDialogFragment(DeckPickerNoSpaceLeftDialog.newInstance());
         } else if (preferences.getBoolean("noSpaceLeft", false)) {
@@ -1360,8 +1356,13 @@ public class DeckPicker extends NavigationDrawerActivity implements OnShowcaseEv
             String syncMessage = "";
             Timber.d("Sync Listener onPostExecute()");
             Resources res = getResources();
-            if (mProgressDialog != null) {
-                mProgressDialog.dismiss();
+            try {
+                if (mProgressDialog != null) {
+                    mProgressDialog.dismiss();
+                }
+            } catch (IllegalArgumentException e) {
+                Timber.e(e, "Could not dismiss mProgressDialog. The Activity must have been destroyed while the AsyncTask was running");
+                AnkiDroidApp.sendExceptionReport(e, "DeckPicker.onPostExecute", "Could not dismiss mProgressDialog");
             }
             syncMessage = data.message;
             if (!data.success) {

@@ -578,12 +578,14 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
         @Override
         public void onProgressUpdate(DeckTask.TaskData... values) {
+            boolean cardChanged = false;
             if (mCurrentCard != values[0].getCard()) {
                 /*
                  * Before updating mCurrentCard, we check whether it is changing or not. If the current card changes,
                  * then we need to display it as a new card, without showing the answer.
                  */
                 sDisplayAnswer = false;
+                cardChanged = true;  // Keep track of that so we can run a bit of new-card code
             }
             mCurrentCard = values[0].getCard();
             if (mCurrentCard == null) {
@@ -603,6 +605,9 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
                 generateQuestionSoundList(); // questions must be intentionally regenerated
                 displayCardAnswer();
             } else {
+                if (cardChanged) {
+                    updateTypeAnswerInfo();
+                }
                 displayCardQuestion();
                 initTimer();
             }
@@ -771,7 +776,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
     /**
      * Format question field when it contains typeAnswer or clozes. If there was an error during type text extraction, a
      * warning is displayed
-     * 
+     *
      * @param buf The question text
      * @return The formatted question text
      */
@@ -790,7 +795,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Fill the placeholder for the type comparison. Show the correct answer, and the comparison if appropriate.
-     * 
+     *
      * @param buf The answer text
      * @param userAnswer Text typed by the user, or empty.
      * @param correctAnswer The correct answer, taken from the note.
@@ -835,7 +840,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Return the correct answer to use for {{type::cloze::NN}} fields.
-     * 
+     *
      * @param txt The field text with the clozes
      * @param idx The index of the cloze to use
      * @return A string with a comma-separeted list of unique cloze strings with the corret index.
@@ -951,7 +956,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
         }
 
         mUseQuickUpdate = shouldUseQuickUpdate();
-       
+
         initLayout();
 
         setTitle();
@@ -1110,7 +1115,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
     /**
      * Returns the text stored in the clipboard or the empty string if the clipboard is empty or contains something that
      * cannot be convered to text.
-     * 
+     *
      * @return the text in clipboard or the empty string.
      */
     private CharSequence clipboardGetText() {
@@ -1130,20 +1135,29 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
         if (resultCode == DeckPicker.RESULT_MEDIA_EJECTED) {
             finishNoStorageAvailable();
         }
+
+        if (!AnkiDroidApp.colIsOpen()) {
+            Timber.e("onActivityResult -- Collection is not open... aborting");
+            return;
+        }
+
         if (requestCode == EDIT_CURRENT_CARD) {
-            // If the card was rescheduled, we need to remove it from the top of the queue as it is
-            // no longer positioned there. Use a "fake" answer for this by passing a null card.
-            if (data != null && data.hasExtra("rescheduled")) {
+            /* Reset the schedule and reload the latest card off the top of the stack if required.
+               The card could have been rescheduled, the deck could have changed, or a change of
+               note type could have lead to the card being deleted */
+            if (data!=null && data.hasExtra("reloadRequired")) {
+                getCol().getSched().reset();
                 DeckTask.launchDeckTask(DeckTask.TASK_TYPE_ANSWER_CARD, mAnswerCardHandler, new DeckTask.TaskData(
                         mSched, null, 0));
             }
-            // Modification of the note is independent of rescheduling, so we still need to save it if it
-            // happened.
-            if (resultCode != RESULT_CANCELED) {
+
+            if (resultCode == RESULT_OK) {
+                // content of note was changed so update the note and current card
                 Timber.i("AbstractFlashcardViewer:: Saving card...");
                 DeckTask.launchDeckTask(DeckTask.TASK_TYPE_UPDATE_FACT, mUpdateCardHandler, new DeckTask.TaskData(
                         mSched, mCurrentCard, true));
-            } else {
+            } else if (resultCode == RESULT_CANCELED && !(data!=null && data.hasExtra("reloadRequired"))) {
+                // nothing was changed by the note editor so just redraw the card
                 fillFlashcard();
             }
         }
@@ -1501,6 +1515,8 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
         }
         webView.getSettings().setBuiltInZoomControls(true);
         webView.getSettings().setSupportZoom(true);
+        // Start at the most zoomed-out level
+        webView.getSettings().setLoadWithOverviewMode(true);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.setWebChromeClient(new AnkiDroidWebChromeClient());
         if (AnkiDroidApp.SDK_VERSION > 7) {
@@ -1740,7 +1756,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
         mDoubleScrolling = preferences.getBoolean("double_scrolling", false);
         mPrefCenterVertically = preferences.getBoolean("centerVertically", false);
 
-        mGesturesEnabled = AnkiDroidApp.initiateGestures(this, preferences);
+        mGesturesEnabled = AnkiDroidApp.initiateGestures(preferences);
         if (mGesturesEnabled) {
             mGestureSwipeUp = Integer.parseInt(preferences.getString("gestureSwipeUp", "9"));
             mGestureSwipeDown = Integer.parseInt(preferences.getString("gestureSwipeDown", "0"));
@@ -1987,7 +2003,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
         if (mCurrentSimpleInterface) {
             mCardContent = convertToSimple(question);
-            if (mCardContent.length() == 0) {
+            if (mCardContent== null || mCardContent.length() == 0) {
                 SpannableString hint = new SpannableString(getResources().getString(R.string.simple_interface_hint,
                         R.string.card_details_question));
                 hint.setSpan(new StyleSpan(Typeface.ITALIC), 0, mCardContent.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -2022,7 +2038,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Clean up the correct answer text, so it can be used for the comparison with the typed text
-     * 
+     *
      * @param answer The content of the field the text typed by the user is compared to.
      * @return The correct answer text, with actual HTML and media references removed, and HTML entities unescaped.
      */
@@ -2047,7 +2063,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Clean up the typed answer text, so it can be used for the comparison with the correct answer
-     * 
+     *
      * @param answer The answer text typed by the user.
      * @return The typed answer text, cleaned up.
      */
@@ -2090,7 +2106,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
         if (mCurrentSimpleInterface) {
             mCardContent = convertToSimple(answer);
-            if (mCardContent.length() == 0) {
+            if (mCardContent== null || mCardContent.length() == 0) {
                 SpannableString hint = new SpannableString(getResources().getString(R.string.simple_interface_hint,
                         R.string.card_details_answer));
                 hint.setSpan(new StyleSpan(Typeface.ITALIC), 0, mCardContent.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -2240,7 +2256,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
     /**
      * Converts characters in Unicode Supplementary Multilingual Plane (SMP) to their equivalent Html Entities. This is
      * done because webview has difficulty displaying these characters.
-     * 
+     *
      * @param text
      * @return
      */
@@ -2258,7 +2274,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Plays sounds (or TTS, if configured) for currently shown side of card.
-     * 
+     *
      * @param doAudioReplay indicates an anki desktop-like replay call is desired, whose behavior is identical to
      *            pressing the keyboard shortcut R on the desktop
      */
@@ -2303,7 +2319,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Reads the text (using TTS) for the given side of a card.
-     * 
+     *
      * @param card The card to play TTS for
      * @param cardSide The side of the current card to play TTS for
      */
@@ -2320,7 +2336,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Returns the configuration for the current {@link Card}.
-     * 
+     *
      * @return The configuration for the current {@link Card}
      */
     private JSONObject getConfigForCurrentCard() {
@@ -2330,7 +2346,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Returns the deck ID of the given {@link Card}.
-     * 
+     *
      * @param card The {@link Card} to get the deck ID
      * @return The deck ID of the {@link Card}
      */
@@ -2409,7 +2425,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
     /**
      * Adds a div html tag around the contents to have an indication, where answer/question is displayed
-     * 
+     *
      * @param content
      * @param isAnswer if true then the class attribute is set to "answer", "question" otherwise.
      * @return
@@ -2438,7 +2454,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
      * this logic, eg nested span/divs with CSS classes having font-size declarations with relative units (40% dif
      * inside 120% div inside 60% div). Broken HTML also breaks this. Feel free to improve, but please keep it short and
      * fast.
-     * 
+     *
      * @param content The HTML content that will be font-size-adjusted.
      * @param percentage The relative font size percentage defined in preferences
      * @return
@@ -2506,7 +2522,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
     /**
      * Calculates a dynamic font size depending on the length of the contents taking into account that the input string
      * contains html-tags, which will not be displayed and therefore should not be taken into account.
-     * 
+     *
      * @param htmlContent
      * @return font size respecting MIN_DYNAMIC_FONT_SIZE and MAX_DYNAMIC_FONT_SIZE
      */
@@ -2655,7 +2671,7 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
      * WebView.
      * <p>
      * It is also needed to solve a refresh issue on Nook devices.
-     * 
+     *
      * @return true if we should use a single WebView
      */
     private boolean shouldUseQuickUpdate() {
@@ -3027,13 +3043,18 @@ public abstract class AbstractFlashcardViewer extends NavigationDrawerActivity {
 
 
     private Spanned convertToSimple(String text) {
-        return Html.fromHtml(text, mSimpleInterfaceImagegetter, mSimpleInterfaceTagHandler);
+        try {
+            return Html.fromHtml(text, mSimpleInterfaceImagegetter, mSimpleInterfaceTagHandler);
+        } catch (Exception e) {
+            Timber.e(e, "Error converting to simple interface");
+            return null;
+        }
     }
 
 
     /**
      * Removes first occurrence in answerContent of any audio that is present due to use of
-     * {{FrontSide}} on the answer. 
+     * {{FrontSide}} on the answer.
      * @param answerContent     The content from which to remove front side audio.
      * @return                  The content stripped of audio due to {{FrontSide}} inclusion.
      */

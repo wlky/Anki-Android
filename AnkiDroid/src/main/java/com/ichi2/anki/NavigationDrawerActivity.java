@@ -153,17 +153,17 @@ public class NavigationDrawerActivity extends AnkiActivity {
 
                 break;
             case DRAWER_SETTINGS:
-                mOldColPath = AnkiDroidApp.getSharedPrefs(this).getString("deckPath", "oldPath");
+                mOldColPath = AnkiDroidApp.getCurrentAnkiDroidDirectory();
                 startActivityForResultWithAnimation(new Intent(this, Preferences.class), REQUEST_PREFERENCES_UPDATE, ActivityTransitionAnimation.LEFT);
                 break;
             
             case DRAWER_HELP:
-                Intent helpIntent = new Intent("android.intent.action.VIEW", Uri.parse(getManualUrl()));
+                Intent helpIntent = new Intent("android.intent.action.VIEW", Uri.parse(AnkiDroidApp.getManualUrl()));
                 startActivityWithoutAnimation(helpIntent);
                 break;
                 
             case DRAWER_FEEDBACK:
-                Intent feedbackIntent = new Intent("android.intent.action.VIEW", Uri.parse(getFeedbackUrl()));
+                Intent feedbackIntent = new Intent("android.intent.action.VIEW", Uri.parse(AnkiDroidApp.getFeedbackUrl()));
                 startActivityWithoutAnimation(feedbackIntent);
                 break;
             
@@ -172,40 +172,6 @@ public class NavigationDrawerActivity extends AnkiActivity {
         }
     }
 
-    /**
-     * Get the url for the feedback page
-     * @return
-     */
-    private String getFeedbackUrl() {
-        if (isCurrentLanguage("ja")) {
-            return getResources().getString(R.string.link_help_ja);
-        } else {
-            return getResources().getString(R.string.link_help);
-        }
-    }
-
-    /**
-     * Get the url for the manual
-     * @return
-     */
-    private String getManualUrl() {
-        if (isCurrentLanguage("ja")) {
-            return getResources().getString(R.string.link_manual_ja);
-        } else {
-            return getResources().getString(R.string.link_manual);
-        }
-    }
-
-    /**
-     * Check whether l is the currently set language code
-     * @param l ISO2 language code
-     * @return
-     */
-    private boolean isCurrentLanguage(String l) {
-        String pref = AnkiDroidApp.getSharedPrefs(this).getString(Preferences.LANGUAGE, "");
-        return pref.equals(l) || pref.equals("") && Locale.getDefault().getLanguage().equals(l);
-    }
-    
     protected void deselectAllNavigationItems() {
         // Deselect all entries in navigation drawer
         for (int i=0; i< mDrawerList.getCount(); i++) {
@@ -340,7 +306,7 @@ public class NavigationDrawerActivity extends AnkiActivity {
         AnkiDroidApp.setLanguage(preferences.getString(Preferences.LANGUAGE, ""));
         // Restart the activity on preference change
         if (requestCode == REQUEST_PREFERENCES_UPDATE) {
-            if (mOldColPath!=null && preferences.getString("deckPath", "").equals(mOldColPath)) {
+            if (mOldColPath!=null && AnkiDroidApp.getCurrentAnkiDroidDirectory().equals(mOldColPath)) {
                 // collection path hasn't been changed so just restart the current activity
                 if ((this instanceof Reviewer) && preferences.getBoolean("tts", false)) {
                     // Workaround to kick user back to StudyOptions after opening settings from Reviewer

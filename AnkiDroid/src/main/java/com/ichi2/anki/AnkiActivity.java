@@ -44,6 +44,7 @@ public class AnkiActivity extends ActionBarActivity implements LoaderManager.Loa
     private StyledOpenCollectionDialog mOpenCollectionDialog;
     private DialogHandler mHandler = new DialogHandler(this);
 
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -330,7 +331,7 @@ public class AnkiActivity extends ActionBarActivity implements LoaderManager.Loa
      * If a DialogFragment cannot be shown due to the Activity being stopped then the message is shown in the
      * notification bar instead.
      * 
-     * @param String message
+     * @param message
      */
     protected void showSimpleMessageDialog(String message) {
         showSimpleMessageDialog(message, false);
@@ -435,3 +436,4 @@ public class AnkiActivity extends ActionBarActivity implements LoaderManager.Loa
         this.finishWithoutAnimation();
     }
 }
+
