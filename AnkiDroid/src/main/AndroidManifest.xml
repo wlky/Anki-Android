@@ -231,7 +231,7 @@
         <service android:name="com.ichi2.widget.AnkiDroidWidgetSmall$UpdateService" />
 
         <!-- Service to listen for incoming messages from a connected Android Wear device -->
-        <service android:name=".WearMessageListenerService">
+        <service android:name="com.ichi2.wear.WearMessageListenerService">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
             </intent-filter>
