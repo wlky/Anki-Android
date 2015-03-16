@@ -19,12 +19,18 @@ import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableStatusCodes;
 
+import java.util.ArrayList;
+
 public class WearMainActivity extends Activity {
     private static final String TAG = "WearMain";
-    private static final String PATH = "/com.anki";
+    private static final String W2P_REQUEST_CARD = "/com.ichi2.wear/requestCard";
+    private static final String W2P_RESPOND_CARD_EASE = "/com.ichi2.wear/cardEase";
     private TextView mTextView;
     private Button sendButton;
     private GoogleApiClient googleApiClient;
+
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,7 +77,7 @@ public class WearMainActivity extends Activity {
                     });
 
                     PendingResult<MessageApi.SendMessageResult> messageResult = Wearable.MessageApi.sendMessage(googleApiClient, node.getId(),
-                            PATH, "gimme the next 10".getBytes());
+                            W2P_REQUEST_CARD, "gimme the next 10".getBytes());
                     messageResult.setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
                         @Override
                         public void onResult(MessageApi.SendMessageResult sendMessageResult) {

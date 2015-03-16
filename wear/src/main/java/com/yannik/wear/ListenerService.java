@@ -10,10 +10,11 @@ import com.google.android.gms.wearable.WearableListenerService;
  */
 public class ListenerService extends WearableListenerService {
 
+    private static final String P2W_RESPOND_CARD = "/com.ichi2.wear/respondWithCard";
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
 
-        if (messageEvent.getPath().equals("/message_path")) {
+        if (messageEvent.getPath().equals(P2W_RESPOND_CARD)) {
             final String message = new String(messageEvent.getData());
             Log.v("myTag", "Message path received on watch is: " + messageEvent.getPath());
             Log.v("myTag", "Message received on watch is: " + message);
