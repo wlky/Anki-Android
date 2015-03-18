@@ -1,18 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent"
-    android:layout_height="match_parent" tools:context=".WearMainActivity"
-    tools:deviceIds="wear_round">
+<android.support.wearable.view.BoxInsetLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_height="match_parent"
+    android:layout_width="match_parent"
+    android:padding="0dp">
 
-    <TextView android:id="@+id/text" android:layout_width="wrap_content"
-        android:layout_height="wrap_content" android:layout_centerHorizontal="true"
-        android:layout_centerVertical="true" android:text="@string/hello_round" />
+    <FrameLayout
+        android:id="@+id/mainFrame"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_box="all">
 
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Send"
-        android:id="@+id/button"
-        android:layout_above="@+id/text"
-        android:layout_centerHorizontal="true" />
-</RelativeLayout>
+        <TextView
+            android:id="@+id/text"
+            android:gravity="center"
+            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:text="Hallo"
+            android:textColor="@color/white" />
+
+
+        <com.yannik.wear.PullButton
+            android:id="@+id/confirmButton"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_gravity="bottom|left"
+            >
+
+        </com.yannik.wear.PullButton>
+        <com.yannik.wear.PullButton
+            android:id="@+id/denyButton"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
+            android:layout_gravity="bottom|right"
+            >
+
+        </com.yannik.wear.PullButton>
+    </FrameLayout>
+</android.support.wearable.view.BoxInsetLayout>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content" android:layout_height="wrap_content"
+
+    >
+
+    <ImageButton
+        android:layout_width="50dp"
+        android:layout_height="30dp"
+        android:id="@+id/icon"
+        android:src="@drawable/generic_confirmation_00170"
+        android:layout_alignParentTop="true"
+        android:alpha="0.5"
+        android:layout_centerHorizontal="true" />
+
+    <TextView
+        android:layout_width="90dp"
+        android:layout_height="20dp"
+        android:gravity="center"
+        android:textAppearance="?android:attr/textAppearanceSmall"
+        android:text="Small Text"
+        android:background="@color/white"
+        android:textColor="@color/black"
+        android:id="@+id/textView"
+        android:layout_below="@+id/icon"
+
+        android:layout_centerHorizontal="true" />
+
+</RelativeLayout>

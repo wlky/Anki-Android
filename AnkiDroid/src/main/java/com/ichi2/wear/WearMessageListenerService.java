@@ -1,13 +1,16 @@
 package com.ichi2.wear;
 
-import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
+import android.support.v4.content.LocalBroadcastManager;
+import android.text.Html;
 import android.util.Log;
-import android.view.View;
 
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.PendingResult;
@@ -23,22 +26,14 @@ import com.google.android.gms.wearable.WearableStatusCodes;
 import com.ichi2.anki.AbstractFlashcardViewer;
 import com.ichi2.anki.AnkiDroidApp;
 import com.ichi2.anki.DeckPicker;
-import com.ichi2.anki.MetaDB;
 import com.ichi2.anki.R;
-import com.ichi2.anki.stats.AnkiStatsTaskHandler;
 import com.ichi2.async.CollectionLoader;
 import com.ichi2.async.DeckTask;
 import com.ichi2.libanki.Card;
 import com.ichi2.libanki.Collection;
 import com.ichi2.libanki.Sched;
-import com.ichi2.themes.StyledProgressDialog;
-import com.ichi2.themes.Themes;
 
-import org.json.JSONException;
-
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.TreeSet;
 
 import timber.log.Timber;
@@ -46,7 +41,7 @@ import timber.log.Timber;
 /**
  * Created by Yannik on 12.03.2015.
  */
-public class WearMessageListenerService extends WearableListenerService implements LoaderManager.LoaderCallbacks<Collection>{
+public class WearMessageListenerService extends WearableListenerService implements LoaderManager.LoaderCallbacks<Collection> {
     private static final String TAG = "Phone_MessageListener";
     private static final String W2P_REQUEST_CARD = "/com.ichi2.wear/requestCard";
     private static final String P2W_RESPOND_CARD = "/com.ichi2.wear/respondWithCard";
@@ -84,6 +79,10 @@ public class WearMessageListenerService extends WearableListenerService implemen
             } else {
                 // Start reviewing next card
                 //updateTypeAnswerInfo();
+                if (sendNewCardToWear) {
+                    fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard._getQA().get("a")).toString()).getBytes());
+                    sendNewCardToWear = false;
+                }
             }
 
             // Since reps are incremented on fetch of next card, we will miss counting the
@@ -107,9 +106,9 @@ public class WearMessageListenerService extends WearableListenerService implemen
             }
             // Check for no more cards before session complete. If they are both true, no more cards will take
             // precedence when returning to study options.
-            if (mNoMoreCards) {
+            //if (mNoMoreCards) {
                 //closeReviewer(RESULT_NO_MORE_CARDS, true);
-            }
+            //}
         }
 
 
@@ -153,58 +152,88 @@ public class WearMessageListenerService extends WearableListenerService implemen
 
 
     @Override
-    public void onCreate(){
+    public void onCreate() {
         super.onCreate();
+
+        String path = AnkiDroidApp.getCollectionPath();
+        AnkiDroidApp.openCollection(path);
+
+        googleApiClient = new GoogleApiClient.Builder(this)
+                .addApi(Wearable.API)
+                .build();
+        googleApiClient.connect();
+
+
         if (colOpen()) {
             DeckTask.launchDeckTask(DeckTask.TASK_TYPE_LOAD_DECK_COUNTS, mLoadCountsHandler, new DeckTask.TaskData(getCol()));
-        }else{
+        } else {
             Log.v(TAG, "collection is not open!");
         }
+
+        IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
+        MessageReceiver messageReceiver = new MessageReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
     }
+
+    boolean sendNewCardToWear = false;
+    private static final int TASK_TYPE_ANSWER_CARD_NULL = 12;
+    private static final int TASK_TYPE_ANSWER_CARD = 13;
 
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         if (messageEvent.getPath().equals(W2P_REQUEST_CARD)) {
-            if(googleApiClient == null || !(googleApiClient.isConnected() && googleApiClient.isConnecting())){
-                googleApiClient = new GoogleApiClient.Builder(this)
-                        .addApi(Wearable.API)
-                        .build();
-                googleApiClient.connect();
-            }
-
             final String message = new String(messageEvent.getData());
             Log.v("myTag", "Message path received on phone is: " + messageEvent.getPath());
             Log.v("myTag", "Message received on phone is: " + message);
-            String responseString = "";
-
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-
-            if(mCurrentCard != null) {
-                responseString = mCurrentCard.q();
-            }else{
+            if (mCurrentCard != null) {
+                fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard._getQA().get("a")).toString()).getBytes());
+            } else {
                 Log.v(TAG, "mCurrentCard is null");
-            }
-            fireMessage(responseString.getBytes());
-        }else if(messageEvent.getPath().equals(W2P_RESPOND_CARD_EASE)){
+                sendNewCardToWear = true;
 
-            DeckTask.launchDeckTask(DeckTask.TASK_TYPE_ANSWER_CARD, mAnswerCardHandler, new DeckTask.TaskData(mSched,
-                    mCurrentCard, messageEvent.getData()[0]));
-        }
-        else {
+                Intent messageIntent = new Intent();
+                messageIntent.setAction(Intent.ACTION_SEND);
+                messageIntent.putExtra("task", TASK_TYPE_ANSWER_CARD_NULL);
+                LocalBroadcastManager.getInstance(this).sendBroadcast(messageIntent);
+            }
+
+
+        } else if (messageEvent.getPath().equals(W2P_RESPOND_CARD_EASE)) {
+            Intent messageIntent = new Intent();
+            messageIntent.setAction(Intent.ACTION_SEND);
+            messageIntent.putExtra("task", TASK_TYPE_ANSWER_CARD);
+
+            int ease = 0;
+            String easeString = new String(messageEvent.getData());
+            if (easeString.equals("failed")) {
+                Timber.i("WearMessageListenerService:: EASE_FAILED received");
+                ease = AbstractFlashcardViewer.EASE_FAILED;
+            } else if (easeString.equals("hard")) {
+                Timber.i("WearMessageListenerService:: EASE_HARD received");
+                ease = AbstractFlashcardViewer.EASE_HARD;
+            } else if (easeString.equals("mid")) {
+                Timber.i("WearMessageListenerService:: EASE_MID received");
+                ease = AbstractFlashcardViewer.EASE_MID;
+            } else if (easeString.equals("easy")) {
+                Timber.i("WearMessageListenerService:: EASE_EASY received");
+                ease = AbstractFlashcardViewer.EASE_EASY;
+            } else {
+                ease = 0;
+                return;
+            }
+            messageIntent.putExtra("ease", ease);
+
+            if (ease != 0) {
+                sendNewCardToWear = true;
+                LocalBroadcastManager.getInstance(this).sendBroadcast(messageIntent);
+            }
+
+        } else {
             super.onMessageReceived(messageEvent);
         }
     }
 
     private void fireMessage(final byte[] data) {
-        String path = AnkiDroidApp.getCollectionPath();
-        AnkiDroidApp.openCollection(path);
-
-
 
         // Send the RPC
         PendingResult<NodeApi.GetConnectedNodesResult> nodes = Wearable.NodeApi.getConnectedNodes(googleApiClient);
@@ -269,11 +298,8 @@ public class WearMessageListenerService extends WearableListenerService implemen
     }
 
 
-    public void onCollectionLoaded(Collection col){
-        mSched = col.getSched();
-        col.getSched().reset();     // Reset schedule incase card had previous been loaded
-        DeckTask.launchDeckTask(DeckTask.TASK_TYPE_ANSWER_CARD, mAnswerCardHandler, new DeckTask.TaskData(mSched, null,
-                0));
+    public void onCollectionLoaded(Collection col) {
+        queryForCurrentCard();
     }
 
     @Override
@@ -301,4 +327,32 @@ public class WearMessageListenerService extends WearableListenerService implemen
     public Collection getCol() {
         return AnkiDroidApp.getCol();
     }
+
+    private void queryForCurrentCard() {
+        mSched = getCol().getSched();
+        mSched.reset();     // Reset schedule incase card had previous been loaded
+        DeckTask.launchDeckTask(DeckTask.TASK_TYPE_ANSWER_CARD, mAnswerCardHandler, new DeckTask.TaskData(mSched, null, 0));
+        // Since we aren't actually answering a card, decrement the rep count
+        mSched.setReps(mSched.getReps() - 1);
+    }
+
+
+    public class MessageReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            int task = intent.getIntExtra("task", 1337);
+            mSched = getCol().getSched();
+            switch (task) {
+                case TASK_TYPE_ANSWER_CARD_NULL:
+                    queryForCurrentCard();
+                    break;
+                case TASK_TYPE_ANSWER_CARD:
+                    DeckTask.launchDeckTask(DeckTask.TASK_TYPE_ANSWER_CARD, mAnswerCardHandler, new DeckTask.TaskData(mSched,
+                            mCurrentCard, intent.getIntExtra("ease", AbstractFlashcardViewer.EASE_MID)));
+                    break;
+            }
+        }
+    }
+
+
 }
