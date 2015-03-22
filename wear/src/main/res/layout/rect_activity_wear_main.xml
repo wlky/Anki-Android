@@ -15,10 +15,11 @@
             android:id="@+id/text"
             android:textSize="50sp"
             android:gravity="center"
-            android:layout_height="match_parent"
+            android:layout_height="144dp"
             android:layout_width="match_parent"
             android:text="Hallo"
-            android:textColor="@color/white" />
+            android:textColor="@color/white"
+            android:layout_gravity="center" />
 
 
         <com.yannik.wear.PullButton

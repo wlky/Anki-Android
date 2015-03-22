@@ -80,7 +80,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
                 // Start reviewing next card
                 //updateTypeAnswerInfo();
                 if (sendNewCardToWear) {
-                    fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard._getQA().get("a")).toString()).getBytes());
+                    fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard.getPureAnswerForReading())).getBytes());
                     sendNewCardToWear = false;
                 }
             }
@@ -186,7 +186,9 @@ public class WearMessageListenerService extends WearableListenerService implemen
             Log.v("myTag", "Message path received on phone is: " + messageEvent.getPath());
             Log.v("myTag", "Message received on phone is: " + message);
             if (mCurrentCard != null) {
-                fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard._getQA().get("a")).toString()).getBytes());
+                Log.v("TEST", mCurrentCard.getPureAnswerForReading());
+                Log.v("TEST2", mCurrentCard.aSimple());
+                fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard.getPureAnswerForReading()).toString()).getBytes());
             } else {
                 Log.v(TAG, "mCurrentCard is null");
                 sendNewCardToWear = true;
