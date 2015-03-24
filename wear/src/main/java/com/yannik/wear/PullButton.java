@@ -29,6 +29,7 @@ public class PullButton extends RelativeLayout {
     private int exitY = 0;
     ImageButton icon;
     TextView textView;
+    TextView easeTextView;
     int imageResId = -1;
     boolean upsideDown;
     public PullButton(Context context) {
@@ -66,6 +67,7 @@ public class PullButton extends RelativeLayout {
                 getViewTreeObserver().removeOnGlobalLayoutListener(this);
                 icon = (ImageButton)findViewById(R.id.icon);
                 textView = (TextView) findViewById(R.id.textView);
+                easeTextView = (TextView) findViewById(R.id.ease_text);
 
                 for (int i = 0; i < N; ++i)
                 {
@@ -84,7 +86,12 @@ public class PullButton extends RelativeLayout {
                             if(upsideDown){
                                 textView.setY(0);
                                 icon.setY(textView.getHeight());
+                                icon.setRotation(180);
+                                easeTextView.setY(easeTextView.getY()+textView.getHeight());
                             }
+                            break;
+                        case R.styleable.PullButton_ease_text:
+                            easeTextView.setText(a.getString(attr));
                             break;
                     }
                 }
@@ -97,13 +104,15 @@ public class PullButton extends RelativeLayout {
                 }
 
                 if(upsideDown){
-                    homePosition = getY() - textView.getHeight();
+                    homePosition = 0 - textView.getHeight();
+                    extendedPosition = 0;
                     exitY = displaySize.y + 10;
                 }else {
-                    homePosition = getY() + textView.getHeight();
+                    homePosition = displaySize.y - icon.getHeight();
+                    extendedPosition = displaySize.y - getHeight();
                     exitY = -getHeight() - 10;
                 }
-                extendedPosition = getY();
+
                 minMovementDistance = displaySize.y / 2;
 
                 setY(homePosition);
@@ -170,6 +179,7 @@ public class PullButton extends RelativeLayout {
                         System.out.println("Velocity is: " + yVelocity);
                         System.out.println("Distance is: " + (viewPositionY - exitY));
                         v.animate()
+                                .setStartDelay(0)
                                 .y(exitY)
                                 .setDuration(Math.min((long) ((Math.abs(viewPositionY - exitY))/Math.abs(mVelocityTracker.getYVelocity())),500))
                                 .setListener(new AnimatorListenerAdapter() {
@@ -177,13 +187,13 @@ public class PullButton extends RelativeLayout {
                                     public void onAnimationEnd(Animator animation) {
                                         if(ocl!=null)ocl.onClick(PullButton.this);
                                         v.setY(displaySize.y + 10);
-                                        v.animate().y(homePosition).setListener(null).setDuration(250);
+                                        v.animate().setStartDelay(0).y(homePosition).setListener(null).setDuration(250);
                                     }
                                 });
                     }else if(viewPositionY + v.getHeight() < displaySize.y){
-                        v.animate().y(extendedPosition).setListener(null);
+                        v.animate().setStartDelay(0).y(extendedPosition).setListener(null);
                     }else{
-                        v.animate().y(homePosition).setListener(null);
+                        v.animate().setStartDelay(0).y(homePosition).setListener(null);
                     }
 
                     mVelocityTracker.recycle();
@@ -205,6 +215,20 @@ public class PullButton extends RelativeLayout {
         if(icon != null) {
             icon.setImageResource(res);
         }
+    }
+
+    public void setText(String text){
+        textView.setText(text);
+    }
+
+    public void slideIn(long delay){
+        if(upsideDown){
+            setY(-getHeight());
+        }else{
+            setY(displaySize.y);
+        }
+        setVisibility(View.VISIBLE);
+        animate().setStartDelay(delay).y(homePosition).setListener(null);
     }
 
 }

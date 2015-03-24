@@ -16,9 +16,9 @@ public class ListenerService extends WearableListenerService {
     public void onMessageReceived(MessageEvent messageEvent) {
 
         if (messageEvent.getPath().equals(P2W_RESPOND_CARD)) {
-            //final String message = new String(messageEvent.getData());
+            final String message = new String(messageEvent.getData());
             Log.v("myTag", "Message path received on watch is: " + messageEvent.getPath());
-            //Log.v("myTag", "Message received on watch is: " + message);
+            Log.v("myTag", "Message received on watch is: " + message);
 
             Intent messageIntent = new Intent();
             messageIntent.setAction(Intent.ACTION_SEND);

@@ -33,7 +33,13 @@ import com.ichi2.libanki.Card;
 import com.ichi2.libanki.Collection;
 import com.ichi2.libanki.Sched;
 
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.TreeSet;
 
 import timber.log.Timber;
@@ -80,7 +86,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
                 // Start reviewing next card
                 //updateTypeAnswerInfo();
                 if (sendNewCardToWear) {
-                    fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard.getPureAnswerForReading())).getBytes());
+                    sendCurrentCardToWear();
                     sendNewCardToWear = false;
                 }
             }
@@ -107,7 +113,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
             // Check for no more cards before session complete. If they are both true, no more cards will take
             // precedence when returning to study options.
             //if (mNoMoreCards) {
-                //closeReviewer(RESULT_NO_MORE_CARDS, true);
+            //closeReviewer(RESULT_NO_MORE_CARDS, true);
             //}
         }
 
@@ -179,6 +185,37 @@ public class WearMessageListenerService extends WearableListenerService implemen
     private static final int TASK_TYPE_ANSWER_CARD_NULL = 12;
     private static final int TASK_TYPE_ANSWER_CARD = 13;
 
+    private void sendCurrentCardToWear() {
+        int buttonCount;
+        try {
+            buttonCount = mSched.answerButtons(mCurrentCard);
+        } catch (RuntimeException e) {
+            AnkiDroidApp.sendExceptionReport(e, "AbstractReviewer-showEaseButtons");
+            return;
+        }
+
+        String buttonTexts[] = new String[buttonCount];
+        for (int i = 0; i < buttonCount; i++){
+            buttonTexts[i] = mSched.nextIvlStr(mCurrentCard, i+1, true);
+        }
+
+
+        HashMap<String, Object> message = new HashMap<String, Object>();
+        message.put("q", Html.fromHtml(mCurrentCard.qSimple()).toString());
+        message.put("a", Html.fromHtml(mCurrentCard.getPureAnswerForReading()).toString());
+        message.put("b", buttonTexts);
+        JSONObject js = new JSONObject(message);
+
+        Log.v(TAG, js.toString());
+        fireMessage( js.toString().getBytes());
+
+
+
+        //fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard.getPureAnswerForReading())).getBytes());
+
+    }
+
+
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
         if (messageEvent.getPath().equals(W2P_REQUEST_CARD)) {
@@ -186,9 +223,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
             Log.v("myTag", "Message path received on phone is: " + messageEvent.getPath());
             Log.v("myTag", "Message received on phone is: " + message);
             if (mCurrentCard != null) {
-                Log.v("TEST", mCurrentCard.getPureAnswerForReading());
-                Log.v("TEST2", mCurrentCard.aSimple());
-                fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard.getPureAnswerForReading()).toString()).getBytes());
+                sendCurrentCardToWear();
             } else {
                 Log.v(TAG, "mCurrentCard is null");
                 sendNewCardToWear = true;

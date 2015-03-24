@@ -11,6 +11,7 @@ import android.support.wearable.view.WatchViewStub;
 import android.text.Spanned;
 import android.text.SpannedString;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.TextView;
 
@@ -25,6 +26,13 @@ import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableStatusCodes;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.Timer;
+import java.util.TimerTask;
+
 
 public class WearMainActivity extends Activity {
     private static final String TAG = "WearMain";
@@ -33,7 +41,8 @@ public class WearMainActivity extends Activity {
     public static TextView mTextView;
     private GoogleApiClient googleApiClient;
     private PullButton failed, hard, mid, easy;
-
+    private boolean showingAnswer = false;
+    private Timer easeButtonShowTimer = new Timer();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,8 +72,35 @@ public class WearMainActivity extends Activity {
                 mTextView.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        mTextView.setText(a);
-                        showButtons();
+                        if (!showingAnswer) {
+                            mTextView.setText(a);
+                            showingAnswer = true;
+                            showButtons();
+                        }
+                    }
+                });
+                mTextView.setOnTouchListener(new View.OnTouchListener() {
+                    @Override
+                    public boolean onTouch(View v, MotionEvent event) {
+                        switch (event.getAction()){
+                            case MotionEvent.ACTION_DOWN:
+                                if (showingAnswer){
+                                    mTextView.setText(q);
+                                }
+                                break;
+                            case MotionEvent.ACTION_CANCEL:
+                                if (showingAnswer){
+                                    mTextView.setText(a);
+                                }
+                                break;
+                            case MotionEvent.ACTION_UP:
+                                if (showingAnswer){
+                                    mTextView.setText(a);
+                                }
+                                break;
+                        }
+//                        Log.v("test", "ontouchevent " + event.getAction());
+                        return false;
 
                     }
                 });
@@ -75,46 +111,39 @@ public class WearMainActivity extends Activity {
                 failed = (PullButton) stub.findViewById(R.id.failedButton);
 
 
-
-                /*easy.setImageRessource(R.drawable.generic_confirmation_00170);
-                mid.setImageRessource(R.drawable.generic_confirmation_00170);
-                hard.setImageRessource(R.drawable.close_button);
-                failed.setImageRessource(R.drawable.close_button);*/
-
-                failed.setOnSwipeListener(new View.OnClickListener() {
+                View.OnClickListener easeButtonListener = new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        fireMessage(W2P_RESPOND_CARD_EASE, "failed");
-                        hideButtons();
-                    }
-                });
+                        String ease = "";
+                        switch (v.getId()) {
+                            case R.id.failedButton:
+                                ease = "failed";
+                                break;
+                            case R.id.hardButton:
+                                ease = "hard";
+                                break;
+                            case R.id.midButton:
+                                ease = "mid";
+                                break;
+                            case R.id.easyButton:
+                                ease = "easy";
+                                break;
+                        }
 
-                easy.setOnSwipeListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        fireMessage(W2P_RESPOND_CARD_EASE, "easy");
+                        fireMessage(W2P_RESPOND_CARD_EASE, ease);
                         hideButtons();
+                        showingAnswer = false;
                     }
-                });
-                hard.setOnSwipeListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        fireMessage(W2P_RESPOND_CARD_EASE, "hard");
-                        hideButtons();
-                    }
-                });
+                };
 
-                mid.setOnSwipeListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        fireMessage(W2P_RESPOND_CARD_EASE, "mid");
-                        hideButtons();
-                    }
-                });
+
+                failed.setOnSwipeListener(easeButtonListener);
+                easy.setOnSwipeListener(easeButtonListener);
+                hard.setOnSwipeListener(easeButtonListener);
+                mid.setOnSwipeListener(easeButtonListener);
+//                hideButtons();
             }
         });
-
-
 
 
         IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
@@ -122,18 +151,47 @@ public class WearMainActivity extends Activity {
         LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
     }
 
-    private void hideButtons(){
+
+    private void hideButtons() {
         easy.setVisibility(View.GONE);
         mid.setVisibility(View.GONE);
         hard.setVisibility(View.GONE);
         failed.setVisibility(View.GONE);
     }
 
-    private void showButtons(){
-        easy.setVisibility(View.VISIBLE);
-        mid.setVisibility(View.VISIBLE);
-        hard.setVisibility(View.VISIBLE);
-        failed.setVisibility(View.VISIBLE);
+    private void showButtons() {
+        switch (numButtons){
+            case 2:
+                mid.slideIn(100);
+                failed.slideIn(300);
+                try {
+                    failed.setText(nextReviewTimes.getString(0));
+                    mid.setText(nextReviewTimes.getString(1));
+                } catch (JSONException e) {}
+                break;
+            case 3:
+                easy.slideIn(100);
+                mid.slideIn(300);
+                failed.slideIn(500);
+                try {
+                    failed.setText(nextReviewTimes.getString(0));
+                    mid.setText(nextReviewTimes.getString(1));
+                    easy.setText(nextReviewTimes.getString(2));
+                } catch (JSONException e) {}
+                break;
+            case 4:
+                easy.slideIn(100);
+                mid.slideIn(300);
+                hard.slideIn(500);
+                failed.slideIn(700);
+                try {
+                    failed.setText(nextReviewTimes.getString(0));
+                    hard.setText(nextReviewTimes.getString(1));
+                    mid.setText(nextReviewTimes.getString(2));
+                    easy.setText(nextReviewTimes.getString(3));
+                } catch (JSONException e) {}
+                break;
+        }
     }
 
     private void fireMessage(final String path, final String ease) {
@@ -163,10 +221,10 @@ public class WearMainActivity extends Activity {
                         public void onResult(MessageApi.SendMessageResult sendMessageResult) {
                             Status status = sendMessageResult.getStatus();
                             Log.d(TAG, "Status: " + status.toString());
-   //                         if (status.getStatusCode() != WearableStatusCodes.SUCCESS) {
+                            //                         if (status.getStatusCode() != WearableStatusCodes.SUCCESS) {
 //                                alertButton.setProgress(-1);
 //                                label.setText("Tap to retry. Alert not sent :(");
- //                           }
+                            //                           }
                         }
                     });
                 }
@@ -174,14 +232,24 @@ public class WearMainActivity extends Activity {
         });
     }
 
-    Spanned q,a;
+    int numButtons = 4;
+    JSONArray nextReviewTimes;
+    Spanned q, a;
+
     public class MessageReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
-            String inc[] = intent.getStringExtra("message").split("<-!SEP!->");
-            q = new SpannedString(inc[0]);
-            a = new SpannedString(inc[1]);
-            mTextView.setText(q);
+            try {
+                JSONObject js = new JSONObject(intent.getStringExtra("message"));
+                q = new SpannedString(js.getString("q"));
+                a = new SpannedString(js.getString("a"));
+                nextReviewTimes = js.getJSONArray("b");
+                numButtons = nextReviewTimes.length();
+                mTextView.setText(q);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
         }
     }
 
