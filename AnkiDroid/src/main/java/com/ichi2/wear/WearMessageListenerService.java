@@ -33,6 +33,8 @@ import com.ichi2.libanki.Card;
 import com.ichi2.libanki.Collection;
 import com.ichi2.libanki.Sched;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -52,6 +54,8 @@ public class WearMessageListenerService extends WearableListenerService implemen
     private static final String W2P_REQUEST_CARD = "/com.ichi2.wear/requestCard";
     private static final String P2W_RESPOND_CARD = "/com.ichi2.wear/respondWithCard";
     private static final String W2P_RESPOND_CARD_EASE = "/com.ichi2.wear/cardEase";
+    private static final String P2W_COLLECTION_LIST = "/com.ichi2.wear/collections";
+    private static final String W2P_SELECTED_COLLECTION = "/com.ichi2.wear/selectCollection";
     private GoogleApiClient googleApiClient;
     protected Sched mSched;
     protected Card mCurrentCard;
@@ -207,7 +211,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
         JSONObject js = new JSONObject(message);
 
         Log.v(TAG, js.toString());
-        fireMessage( js.toString().getBytes());
+        fireMessage( js.toString().getBytes(), P2W_RESPOND_CARD);
 
 
 
@@ -270,7 +274,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
         }
     }
 
-    private void fireMessage(final byte[] data) {
+    private void fireMessage(final byte[] data, final String path) {
 
         // Send the RPC
         PendingResult<NodeApi.GetConnectedNodesResult> nodes = Wearable.NodeApi.getConnectedNodes(googleApiClient);
@@ -291,7 +295,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
                     });
 
                     PendingResult<MessageApi.SendMessageResult> messageResult = Wearable.MessageApi.sendMessage(googleApiClient, node.getId(),
-                            P2W_RESPOND_CARD, data);
+                            path, data);
                     messageResult.setResultCallback(new ResultCallback<MessageApi.SendMessageResult>() {
                         @Override
                         public void onResult(MessageApi.SendMessageResult sendMessageResult) {
@@ -351,10 +355,31 @@ public class WearMessageListenerService extends WearableListenerService implemen
             return;
         }
         deckNames.clear();
+        ArrayList<Long> deckIDs = new ArrayList<Long>();
+        JSONObject json = new JSONObject();
         for (Object[] d : decks) {
             String[] name = ((String[]) d[0]);
-            deckNames.add(DeckPicker.readableDeckName(name));
+            long did = (Long) d[1];
+            String readableName = DeckPicker.readableDeckName(name);
+            deckIDs.add(did);
+
+            try {
+                json.put(readableName,did);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            deckNames.add(readableName);
+            Log.v("test", readableName);
         }
+
+        fireMessage(json.toString().getBytes(), P2W_COLLECTION_LIST);
+
+
+    }
+
+    private void chooseSelection(long did){
+
     }
 
     public boolean colOpen() {

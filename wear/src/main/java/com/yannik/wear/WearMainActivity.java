@@ -30,6 +30,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -235,17 +236,28 @@ public class WearMainActivity extends Activity {
     int numButtons = 4;
     JSONArray nextReviewTimes;
     Spanned q, a;
+    ArrayList<String> deckNames = new ArrayList<String>();
+    ArrayList<Long> deckIDs = new ArrayList<Long>();
 
     public class MessageReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             try {
                 JSONObject js = new JSONObject(intent.getStringExtra("message"));
-                q = new SpannedString(js.getString("q"));
-                a = new SpannedString(js.getString("a"));
-                nextReviewTimes = js.getJSONArray("b");
-                numButtons = nextReviewTimes.length();
-                mTextView.setText(q);
+                if(intent.getStringExtra("path").equals(ListenerService.P2W_RESPOND_CARD)) {
+                    q = new SpannedString(js.getString("q"));
+                    a = new SpannedString(js.getString("a"));
+                    nextReviewTimes = js.getJSONArray("b");
+                    numButtons = nextReviewTimes.length();
+                    mTextView.setText(q);
+                }else if(intent.getStringExtra("path").equals(ListenerService.P2W_COLLECTION_LIST)) {
+                    JSONArray collectionNames = js.names();
+                    for(int i = 0; i < collectionNames.length(); i++){
+                        String colName = collectionNames.getString(i);
+                        deckNames.add(colName);
+                        deckIDs.add(js.getLong(colName));
+                    }
+                }
             } catch (JSONException e) {
                 e.printStackTrace();
             }
