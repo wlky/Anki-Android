@@ -1,41 +1,105 @@
-<?xml version="1.0" encoding="utf-8"?>
-<android.support.wearable.view.BoxInsetLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_height="match_parent"
+    xmlns:autofit="http://schemas.android.com/apk/res-auto"
+
+    android:id="@+id/mainFrame"
     android:layout_width="match_parent"
-    android:padding="0dp">
+    android:layout_height="match_parent">
 
-    <FrameLayout
-        android:id="@+id/mainFrame"
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_box="all">
-
-        <TextView
-            android:id="@+id/text"
-            android:gravity="center"
-            android:layout_height="wrap_content"
+        android:layout_height="match_parent">
+        <ScrollView
             android:layout_width="match_parent"
-            android:text="Hallo"
-            android:textColor="@color/white" />
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:id="@+id/questionAnswerScrollView"
+            android:layout_gravity="top">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp" />
+
+                <TextView
+                    android:id="@+id/text"
+                    android:textSize="50sp"
+                    android:gravity="center"
+                    android:layout_height="wrap_content"
+                    android:layout_width="match_parent"
+                    android:text="Hallo"
+                    android:textColor="@color/white" />
+
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp" />
+            </LinearLayout>
+        </ScrollView>
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/questionAnswerOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+    </RelativeLayout>
 
 
         <com.yannik.wear.PullButton
-            android:id="@+id/confirmButton"
+            android:id="@+id/easyButton"
             android:layout_width="80dp"
-            android:layout_height="80dp"
+            android:layout_height="wrap_content"
             android:layout_gravity="bottom|left"
+            android:visibility="invisible"
+            app:icon="@drawable/pb_easy"
+            app:ease_text="Easy"
+            app:upsideDown="false"
+            app:text="easy"
             >
 
         </com.yannik.wear.PullButton>
         <com.yannik.wear.PullButton
-            android:id="@+id/denyButton"
+            android:id="@+id/midButton"
             android:layout_width="80dp"
-            android:layout_height="80dp"
+            android:layout_height="wrap_content"
             android:layout_gravity="bottom|right"
+            android:visibility="invisible"
+            app:ease_text="Good"
+            app:icon="@drawable/pb_mid"
+            app:upsideDown="false"
+            app:text="mid"
+            >
+        </com.yannik.wear.PullButton>
+
+        <com.yannik.wear.PullButton
+            android:id="@+id/hardButton"
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:visibility="invisible"
+            app:ease_text="Hard"
+            app:icon="@drawable/pb_hard"
+            app:upsideDown="true"
+            app:text="hard"
+            android:layout_gravity="top|left"
             >
 
         </com.yannik.wear.PullButton>
-    </FrameLayout>
-</android.support.wearable.view.BoxInsetLayout>
+        <com.yannik.wear.PullButton
+            android:id="@+id/failedButton"
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|right"
+            android:visibility="invisible"
+            app:ease_text="Again"
+            app:icon="@drawable/pb_failed"
+            app:upsideDown="true"
+            app:text="failed"
+            >
+        </com.yannik.wear.PullButton>
+
+
+
+</FrameLayout>

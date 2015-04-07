@@ -1,19 +1,19 @@
 package com.yannik.wear;
 
-import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentActivity;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.LocalBroadcastManager;
-import android.support.wearable.view.WatchViewStub;
-import android.text.Spanned;
+import android.support.v4.view.PagerAdapter;
+import android.support.v4.view.ViewPager;
 import android.text.SpannedString;
 import android.util.Log;
-import android.view.MotionEvent;
-import android.view.View;
-import android.widget.TextView;
 
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.PendingResult;
@@ -31,25 +31,45 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.List;
 
-
-public class WearMainActivity extends Activity {
+public class WearMainActivity extends FragmentActivity {
     private static final String TAG = "WearMain";
-    private static final String W2P_REQUEST_CARD = "/com.ichi2.wear/requestCard";
-    private static final String W2P_RESPOND_CARD_EASE = "/com.ichi2.wear/cardEase";
-    public static TextView mTextView;
-    private GoogleApiClient googleApiClient;
-    private PullButton failed, hard, mid, easy;
-    private boolean showingAnswer = false;
-    private Timer easeButtonShowTimer = new Timer();
+
+    private static GoogleApiClient googleApiClient;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.wear_main);
-        final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
+
+        final ViewPager viewPager = (ViewPager) findViewById(R.id.pager);
+        final PagerAdapter adapter = new PagerAdapter(getSupportFragmentManager());
+
+        ReviewFragment reviewFragment = ReviewFragment.newInstance();
+        CollectionFragment decksFragment = CollectionFragment.newInstance(null);
+
+        decksFragment.setChooseDeckListener(new CollectionFragment.OnFragmentInteractionListener() {
+            @Override
+            public void onFragmentInteraction(long id) {
+                fireMessage(ReviewFragment.W2P_CHOOSE_COLLECTION,""+id);
+                viewPager.setCurrentItem(0);
+            }
+        });
+
+        jsonReceivers.add(reviewFragment);
+        jsonReceivers.add(decksFragment);
+        adapter.addFragment(reviewFragment);
+        adapter.addFragment(decksFragment);
+        viewPager.setAdapter(adapter);
+
+        IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
+        MessageReceiver messageReceiver = new MessageReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
+
+
         googleApiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
                 .build();
@@ -58,7 +78,8 @@ public class WearMainActivity extends Activity {
             @Override
             public void onConnected(Bundle bundle) {
                 Log.d(TAG, "Wear connected to Google Api");
-                fireMessage(W2P_REQUEST_CARD, null);
+                fireMessage(ReviewFragment.W2P_REQUEST_CARD, null);
+                fireMessage(ReviewFragment.W2P_REQUEST_DECKS, null);
             }
 
             @Override
@@ -66,136 +87,16 @@ public class WearMainActivity extends Activity {
                 Log.d(TAG, "Wear connection to Google Api suspended");
             }
         });
-        stub.setOnLayoutInflatedListener(new WatchViewStub.OnLayoutInflatedListener() {
-            @Override
-            public void onLayoutInflated(WatchViewStub stub) {
-                mTextView = (TextView) stub.findViewById(R.id.text);
-                mTextView.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        if (!showingAnswer) {
-                            mTextView.setText(a);
-                            showingAnswer = true;
-                            showButtons();
-                        }
-                    }
-                });
-                mTextView.setOnTouchListener(new View.OnTouchListener() {
-                    @Override
-                    public boolean onTouch(View v, MotionEvent event) {
-                        switch (event.getAction()){
-                            case MotionEvent.ACTION_DOWN:
-                                if (showingAnswer){
-                                    mTextView.setText(q);
-                                }
-                                break;
-                            case MotionEvent.ACTION_CANCEL:
-                                if (showingAnswer){
-                                    mTextView.setText(a);
-                                }
-                                break;
-                            case MotionEvent.ACTION_UP:
-                                if (showingAnswer){
-                                    mTextView.setText(a);
-                                }
-                                break;
-                        }
-//                        Log.v("test", "ontouchevent " + event.getAction());
-                        return false;
-
-                    }
-                });
-
-                easy = (PullButton) stub.findViewById(R.id.easyButton);
-                mid = (PullButton) stub.findViewById(R.id.midButton);
-                hard = (PullButton) stub.findViewById(R.id.hardButton);
-                failed = (PullButton) stub.findViewById(R.id.failedButton);
 
 
-                View.OnClickListener easeButtonListener = new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        String ease = "";
-                        switch (v.getId()) {
-                            case R.id.failedButton:
-                                ease = "failed";
-                                break;
-                            case R.id.hardButton:
-                                ease = "hard";
-                                break;
-                            case R.id.midButton:
-                                ease = "mid";
-                                break;
-                            case R.id.easyButton:
-                                ease = "easy";
-                                break;
-                        }
-
-                        fireMessage(W2P_RESPOND_CARD_EASE, ease);
-                        hideButtons();
-                        showingAnswer = false;
-                    }
-                };
 
 
-                failed.setOnSwipeListener(easeButtonListener);
-                easy.setOnSwipeListener(easeButtonListener);
-                hard.setOnSwipeListener(easeButtonListener);
-                mid.setOnSwipeListener(easeButtonListener);
-//                hideButtons();
-            }
-        });
-
-
-        IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
-        MessageReceiver messageReceiver = new MessageReceiver();
-        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
     }
 
 
-    private void hideButtons() {
-        easy.setVisibility(View.GONE);
-        mid.setVisibility(View.GONE);
-        hard.setVisibility(View.GONE);
-        failed.setVisibility(View.GONE);
-    }
 
-    private void showButtons() {
-        switch (numButtons){
-            case 2:
-                mid.slideIn(100);
-                failed.slideIn(300);
-                try {
-                    failed.setText(nextReviewTimes.getString(0));
-                    mid.setText(nextReviewTimes.getString(1));
-                } catch (JSONException e) {}
-                break;
-            case 3:
-                easy.slideIn(100);
-                mid.slideIn(300);
-                failed.slideIn(500);
-                try {
-                    failed.setText(nextReviewTimes.getString(0));
-                    mid.setText(nextReviewTimes.getString(1));
-                    easy.setText(nextReviewTimes.getString(2));
-                } catch (JSONException e) {}
-                break;
-            case 4:
-                easy.slideIn(100);
-                mid.slideIn(300);
-                hard.slideIn(500);
-                failed.slideIn(700);
-                try {
-                    failed.setText(nextReviewTimes.getString(0));
-                    hard.setText(nextReviewTimes.getString(1));
-                    mid.setText(nextReviewTimes.getString(2));
-                    easy.setText(nextReviewTimes.getString(3));
-                } catch (JSONException e) {}
-                break;
-        }
-    }
 
-    private void fireMessage(final String path, final String ease) {
+    public static void fireMessage(final String path, final String ease) {
         Log.d(TAG, "Firing Request for card");
         // Send the RPC
         PendingResult<NodeApi.GetConnectedNodesResult> nodes = Wearable.NodeApi.getConnectedNodes(googleApiClient);
@@ -206,14 +107,7 @@ public class WearMainActivity extends Activity {
                     Node node = result.getNodes().get(i);
                     String nName = node.getDisplayName();
                     String nId = node.getId();
-                    Log.d(TAG, "Node name and ID: " + nName + " | " + nId);
-
-                    Wearable.MessageApi.addListener(googleApiClient, new MessageApi.MessageListener() {
-                        @Override
-                        public void onMessageReceived(MessageEvent messageEvent) {
-                            Log.d(TAG, "Message received: " + messageEvent);
-                        }
-                    });
+                    Log.d(TAG, "firing Message with path: " + path);
 
                     PendingResult<MessageApi.SendMessageResult> messageResult = Wearable.MessageApi.sendMessage(googleApiClient, node.getId(),
                             path, (ease == null ? "nextCardPlease" : ease).getBytes());
@@ -222,10 +116,10 @@ public class WearMainActivity extends Activity {
                         public void onResult(MessageApi.SendMessageResult sendMessageResult) {
                             Status status = sendMessageResult.getStatus();
                             Log.d(TAG, "Status: " + status.toString());
-                            //                         if (status.getStatusCode() != WearableStatusCodes.SUCCESS) {
+//                           if (status.getStatusCode() != WearableStatusCodes.SUCCESS) {
 //                                alertButton.setProgress(-1);
 //                                label.setText("Tap to retry. Alert not sent :(");
-                            //                           }
+//                           }
                         }
                     });
                 }
@@ -233,36 +127,51 @@ public class WearMainActivity extends Activity {
         });
     }
 
-    int numButtons = 4;
-    JSONArray nextReviewTimes;
-    Spanned q, a;
-    ArrayList<String> deckNames = new ArrayList<String>();
-    ArrayList<Long> deckIDs = new ArrayList<Long>();
+    ArrayList<JsonReceiver> jsonReceivers = new ArrayList<JsonReceiver>();
 
     public class MessageReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
+            JSONObject js = null;
+            String message = intent.getStringExtra("message");
+            String path = intent.getStringExtra("path");
+
             try {
-                JSONObject js = new JSONObject(intent.getStringExtra("message"));
-                if(intent.getStringExtra("path").equals(ListenerService.P2W_RESPOND_CARD)) {
-                    q = new SpannedString(js.getString("q"));
-                    a = new SpannedString(js.getString("a"));
-                    nextReviewTimes = js.getJSONArray("b");
-                    numButtons = nextReviewTimes.length();
-                    mTextView.setText(q);
-                }else if(intent.getStringExtra("path").equals(ListenerService.P2W_COLLECTION_LIST)) {
-                    JSONArray collectionNames = js.names();
-                    for(int i = 0; i < collectionNames.length(); i++){
-                        String colName = collectionNames.getString(i);
-                        deckNames.add(colName);
-                        deckIDs.add(js.getLong(colName));
-                    }
-                }
-            } catch (JSONException e) {
-                e.printStackTrace();
+                    js = new JSONObject(message);
+            } catch (JSONException e) {}
+
+            for(JsonReceiver jsr : jsonReceivers){
+                jsr.onJsonReceive(path, js);
             }
 
         }
     }
 
+    interface JsonReceiver{
+        public void onJsonReceive(String path, JSONObject json);
+    }
+
+    private class PagerAdapter extends FragmentPagerAdapter {
+        List<Fragment> fragmentList = null;
+
+        public PagerAdapter(FragmentManager fragmentManager) {
+            super(fragmentManager);
+            fragmentList = new ArrayList<Fragment>();
+        }
+
+        @Override
+        public Fragment getItem(int position) {
+            return fragmentList.get(position);
+        }
+
+        @Override
+        public int getCount() {
+            return fragmentList.size();
+        }
+
+        public void addFragment(Fragment fragment) {
+            fragmentList.add(fragment);
+            notifyDataSetChanged();
+        }
+    }
 }

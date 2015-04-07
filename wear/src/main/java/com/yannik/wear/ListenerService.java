@@ -15,8 +15,6 @@ public class ListenerService extends WearableListenerService {
     static final String P2W_COLLECTION_LIST = "/com.ichi2.wear/collections";
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
-
-        if (messageEvent.getPath().equals(P2W_RESPOND_CARD) || messageEvent.getPath().equals(P2W_COLLECTION_LIST)) {
             final String message = new String(messageEvent.getData());
             Log.v("myTag", "Message path received on watch is: " + messageEvent.getPath());
             Log.v("myTag", "Message received on watch is: " + message);
@@ -27,9 +25,8 @@ public class ListenerService extends WearableListenerService {
             messageIntent.putExtra("message", new String(messageEvent.getData()));
             LocalBroadcastManager.getInstance(this).sendBroadcast(messageIntent);
 
-        }
-        else{
+
             super.onMessageReceived(messageEvent);
-        }
+
     }
 }

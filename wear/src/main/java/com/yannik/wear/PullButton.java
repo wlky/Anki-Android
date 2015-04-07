@@ -23,7 +23,7 @@ import android.widget.TextView;
  */
 public class PullButton extends RelativeLayout {
 
-    private float homePosition, extendedPosition;
+    private float homePosition, extendedPosition, homeAlpha = 0.7f, extendedAlpha=1;
     private int minMovementDistance = 50;
     private Point displaySize = new Point();
     private int exitY = 0;
@@ -57,7 +57,6 @@ public class PullButton extends RelativeLayout {
 
 
         final TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.PullButton);
-
         final int N = a.getIndexCount();
 
 
@@ -65,6 +64,7 @@ public class PullButton extends RelativeLayout {
         getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
             public void onGlobalLayout() {
                 getViewTreeObserver().removeOnGlobalLayoutListener(this);
+
                 icon = (ImageButton)findViewById(R.id.icon);
                 textView = (TextView) findViewById(R.id.textView);
                 easeTextView = (TextView) findViewById(R.id.ease_text);
@@ -116,7 +116,7 @@ public class PullButton extends RelativeLayout {
                 minMovementDistance = displaySize.y / 2;
 
                 setY(homePosition);
-
+                setAlpha(homeAlpha);
             }
         });
 
@@ -131,6 +131,15 @@ public class PullButton extends RelativeLayout {
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         return true;
     }
+
+    public void right() {
+        setX(displaySize.x/2);
+    }
+
+    public void left() {
+        setX(displaySize.x/2-getWidth());
+    }
+
 
     class SwipeTouchListener implements OnTouchListener {
         private float yDiff;
@@ -191,9 +200,9 @@ public class PullButton extends RelativeLayout {
                                     }
                                 });
                     }else if(viewPositionY + v.getHeight() < displaySize.y){
-                        v.animate().setStartDelay(0).y(extendedPosition).setListener(null);
+                        v.animate().setStartDelay(0).y(extendedPosition).alpha(extendedAlpha).setListener(null);
                     }else{
-                        v.animate().setStartDelay(0).y(homePosition).setListener(null);
+                        v.animate().setStartDelay(0).y(homePosition).alpha(homeAlpha).setListener(null);
                     }
 
                     mVelocityTracker.recycle();
@@ -203,6 +212,10 @@ public class PullButton extends RelativeLayout {
 
             return true;
         }
+    }
+
+    public void centerX(){
+        setX(displaySize.x/2-getWidth()/2);
     }
 
     OnClickListener ocl;
@@ -227,6 +240,7 @@ public class PullButton extends RelativeLayout {
         }else{
             setY(displaySize.y);
         }
+        setAlpha(homeAlpha);
         setVisibility(View.VISIBLE);
         animate().setStartDelay(delay).y(homePosition).setListener(null);
     }

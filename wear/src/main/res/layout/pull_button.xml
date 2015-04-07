@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content" android:layout_height="wrap_content"
-
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="1dp"
+    android:layout_marginEnd="1dp"
     >
 
     <ImageButton
@@ -11,9 +13,8 @@
         android:src="@drawable/pb_hard"
         android:background="@android:color/transparent"
         android:adjustViewBounds="true"
-        android:scaleType="fitCenter"
+        android:scaleType="fitEnd"
         android:layout_alignParentTop="true"
-        android:alpha="0.7"
         android:layout_centerHorizontal="true" />
 
     <TextView
@@ -36,6 +37,7 @@
         android:gravity="center"
         android:textAppearance="?android:attr/textAppearanceSmall"
         android:text="easy"
+        android:textColor="@color/black"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true" />
 

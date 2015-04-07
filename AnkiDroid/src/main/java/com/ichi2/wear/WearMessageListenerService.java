@@ -55,11 +55,13 @@ public class WearMessageListenerService extends WearableListenerService implemen
     private static final String P2W_RESPOND_CARD = "/com.ichi2.wear/respondWithCard";
     private static final String W2P_RESPOND_CARD_EASE = "/com.ichi2.wear/cardEase";
     private static final String P2W_COLLECTION_LIST = "/com.ichi2.wear/collections";
-    private static final String W2P_SELECTED_COLLECTION = "/com.ichi2.wear/selectCollection";
+    private static final String W2P_CHOOSE_COLLECTION = "/com.ichi2.wear/chooseCollection";
+    private static final String P2W_NOMORECARDS = "/com.ichi2.wear/noMoreCards";
+    private static final String W2P_REQUEST_DECKS = "/com.ichi2.wear/requestDecks";
     private GoogleApiClient googleApiClient;
     protected Sched mSched;
     protected Card mCurrentCard;
-    private ArrayList<String> deckNames = new ArrayList<String>();
+    private static ArrayList<String> deckNames = new ArrayList<String>();
 
     protected DeckTask.TaskListener mAnswerCardHandler = new DeckTask.TaskListener() {
         private boolean mNoMoreCards;
@@ -86,9 +88,9 @@ public class WearMessageListenerService extends WearableListenerService implemen
             if (mCurrentCard == null) {
                 // If the card is null means that there are no more cards scheduled for review.
                 mNoMoreCards = true;
+                sendNoMoreCardsToWear();
             } else {
                 // Start reviewing next card
-                //updateTypeAnswerInfo();
                 if (sendNewCardToWear) {
                     sendCurrentCardToWear();
                     sendNewCardToWear = false;
@@ -127,6 +129,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
         }
     };
 
+
     DeckTask.TaskListener mLoadCountsHandler = new DeckTask.TaskListener() {
 
         @SuppressWarnings("unchecked")
@@ -160,6 +163,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
         }
     };
 
+    MessageReceiver messageReceiver = new MessageReceiver();
 
     @Override
     public void onCreate() {
@@ -173,21 +177,35 @@ public class WearMessageListenerService extends WearableListenerService implemen
                 .build();
         googleApiClient.connect();
 
-
-        if (colOpen()) {
-            DeckTask.launchDeckTask(DeckTask.TASK_TYPE_LOAD_DECK_COUNTS, mLoadCountsHandler, new DeckTask.TaskData(getCol()));
-        } else {
-            Log.v(TAG, "collection is not open!");
+        if (deckNames.isEmpty()) {
+            if (colOpen()) {
+                DeckTask.launchDeckTask(DeckTask.TASK_TYPE_LOAD_DECK_COUNTS, mLoadCountsHandler, new DeckTask.TaskData(getCol()));
+            } else {
+                Log.v(TAG, "collection is not open!");
+            }
         }
-
         IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
-        MessageReceiver messageReceiver = new MessageReceiver();
+
         LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
+
     }
 
-    boolean sendNewCardToWear = false;
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(messageReceiver);
+    }
+
+    boolean sendNewCardToWear = true;
     private static final int TASK_TYPE_ANSWER_CARD_NULL = 12;
     private static final int TASK_TYPE_ANSWER_CARD = 13;
+    private static final int TASK_TYPE_REQUEST_DECKS = 14;
+
+    private void sendNoMoreCardsToWear() {
+        fireMessage(null, P2W_NOMORECARDS);
+    }
+
 
     private void sendCurrentCardToWear() {
         int buttonCount;
@@ -199,8 +217,8 @@ public class WearMessageListenerService extends WearableListenerService implemen
         }
 
         String buttonTexts[] = new String[buttonCount];
-        for (int i = 0; i < buttonCount; i++){
-            buttonTexts[i] = mSched.nextIvlStr(mCurrentCard, i+1, true);
+        for (int i = 0; i < buttonCount; i++) {
+            buttonTexts[i] = mSched.nextIvlStr(mCurrentCard, i + 1, true);
         }
 
 
@@ -211,8 +229,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
         JSONObject js = new JSONObject(message);
 
         Log.v(TAG, js.toString());
-        fireMessage( js.toString().getBytes(), P2W_RESPOND_CARD);
-
+        fireMessage(js.toString().getBytes(), P2W_RESPOND_CARD);
 
 
         //fireMessage((Html.fromHtml(mCurrentCard._getQA().get("q")).toString() + "<-!SEP!->" + Html.fromHtml(mCurrentCard.getPureAnswerForReading())).getBytes());
@@ -222,9 +239,10 @@ public class WearMessageListenerService extends WearableListenerService implemen
 
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
+        Log.v("myTag", "Message path received on phone is: " + messageEvent.getPath());
         if (messageEvent.getPath().equals(W2P_REQUEST_CARD)) {
             final String message = new String(messageEvent.getData());
-            Log.v("myTag", "Message path received on phone is: " + messageEvent.getPath());
+
             Log.v("myTag", "Message received on phone is: " + message);
             if (mCurrentCard != null) {
                 sendCurrentCardToWear();
@@ -238,6 +256,25 @@ public class WearMessageListenerService extends WearableListenerService implemen
                 LocalBroadcastManager.getInstance(this).sendBroadcast(messageIntent);
             }
 
+
+        } else if (messageEvent.getPath().equals(W2P_CHOOSE_COLLECTION)) {
+            long deckId = Long.valueOf(new String(messageEvent.getData()));
+            Log.v("myTag", "Message received on phone is: " + deckId);
+            getCol().getDecks().select(deckId);
+
+
+            sendNewCardToWear = true;
+
+            Intent messageIntent = new Intent();
+            messageIntent.setAction(Intent.ACTION_SEND);
+            messageIntent.putExtra("task", TASK_TYPE_ANSWER_CARD_NULL);
+            LocalBroadcastManager.getInstance(this).sendBroadcast(messageIntent);
+
+        } else if (messageEvent.getPath().equals(W2P_REQUEST_DECKS)) {
+            Intent messageIntent = new Intent();
+            messageIntent.setAction(Intent.ACTION_SEND);
+            messageIntent.putExtra("task", TASK_TYPE_REQUEST_DECKS);
+            LocalBroadcastManager.getInstance(this).sendBroadcast(messageIntent);
 
         } else if (messageEvent.getPath().equals(W2P_RESPOND_CARD_EASE)) {
             Intent messageIntent = new Intent();
@@ -276,7 +313,6 @@ public class WearMessageListenerService extends WearableListenerService implemen
 
     private void fireMessage(final byte[] data, final String path) {
 
-        // Send the RPC
         PendingResult<NodeApi.GetConnectedNodesResult> nodes = Wearable.NodeApi.getConnectedNodes(googleApiClient);
         nodes.setResultCallback(new ResultCallback<NodeApi.GetConnectedNodesResult>() {
             @Override
@@ -285,14 +321,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
                     Node node = result.getNodes().get(i);
                     String nName = node.getDisplayName();
                     String nId = node.getId();
-                    Log.d(TAG, "Node name and ID: " + nName + " | " + nId);
-
-                    Wearable.MessageApi.addListener(googleApiClient, new MessageApi.MessageListener() {
-                        @Override
-                        public void onMessageReceived(MessageEvent messageEvent) {
-                            Log.d(TAG, "Message received: " + messageEvent);
-                        }
-                    });
+                    Log.d(TAG, "Phone firing message with path : " + path);
 
                     PendingResult<MessageApi.SendMessageResult> messageResult = Wearable.MessageApi.sendMessage(googleApiClient, node.getId(),
                             path, data);
@@ -340,7 +369,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
 
 
     public void onCollectionLoaded(Collection col) {
-        queryForCurrentCard();
+        //queryForCurrentCard();
     }
 
     @Override
@@ -364,7 +393,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
             deckIDs.add(did);
 
             try {
-                json.put(readableName,did);
+                json.put(readableName, did);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -378,7 +407,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
 
     }
 
-    private void chooseSelection(long did){
+    private void chooseSelection(long did) {
 
     }
 
@@ -411,6 +440,9 @@ public class WearMessageListenerService extends WearableListenerService implemen
                 case TASK_TYPE_ANSWER_CARD:
                     DeckTask.launchDeckTask(DeckTask.TASK_TYPE_ANSWER_CARD, mAnswerCardHandler, new DeckTask.TaskData(mSched,
                             mCurrentCard, intent.getIntExtra("ease", AbstractFlashcardViewer.EASE_MID)));
+                    break;
+                case TASK_TYPE_REQUEST_DECKS:
+                    DeckTask.launchDeckTask(DeckTask.TASK_TYPE_LOAD_DECK_COUNTS, mLoadCountsHandler, new DeckTask.TaskData(getCol()));
                     break;
             }
         }
