@@ -37,7 +37,7 @@ public class WearMainActivity extends FragmentActivity {
     private static final String TAG = "WearMain";
 
     private static GoogleApiClient googleApiClient;
-
+    private MessageReceiver messageReceiver;
 
 
     @Override
@@ -66,14 +66,14 @@ public class WearMainActivity extends FragmentActivity {
         viewPager.setAdapter(adapter);
 
         IntentFilter messageFilter = new IntentFilter(Intent.ACTION_SEND);
-        MessageReceiver messageReceiver = new MessageReceiver();
+        messageReceiver = new MessageReceiver();
         LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, messageFilter);
 
 
         googleApiClient = new GoogleApiClient.Builder(this)
                 .addApi(Wearable.API)
                 .build();
-        googleApiClient.connect();
+
         googleApiClient.registerConnectionCallbacks(new GoogleApiClient.ConnectionCallbacks() {
             @Override
             public void onConnected(Bundle bundle) {
@@ -87,13 +87,23 @@ public class WearMainActivity extends FragmentActivity {
                 Log.d(TAG, "Wear connection to Google Api suspended");
             }
         });
-
-
-
-
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        googleApiClient.connect();
+    }
 
+    @Override
+    public void onStop(){
+        if (null != googleApiClient && googleApiClient.isConnected()) {
+            googleApiClient.disconnect();
+        }
+        //LocalBroadcastManager.getInstance(this).unregisterReceiver(messageReceiver);
+        super.onStop();
+
+    }
 
 
     public static void fireMessage(final String path, final String ease) {

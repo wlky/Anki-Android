@@ -27,11 +27,12 @@ public class PullButton extends RelativeLayout {
     private int minMovementDistance = 50;
     private Point displaySize = new Point();
     private int exitY = 0;
-    ImageButton icon;
-    TextView textView;
-    TextView easeTextView;
-    int imageResId = -1;
-    boolean upsideDown;
+    private ImageButton icon;
+    private TextView textView;
+    private TextView easeTextView;
+    private int imageResId = -1;
+    private boolean upsideDown;
+
     public PullButton(Context context) {
         this(context, null);
     }
@@ -45,7 +46,6 @@ public class PullButton extends RelativeLayout {
     }
 
     public PullButton(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
-       // super(context, attrs, defStyleAttr, defStyleRes);
         super(context, attrs, defStyleAttr);
         LayoutInflater inflater = (LayoutInflater)getContext().getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         inflater.inflate(R.layout.pull_button, this);
@@ -60,7 +60,6 @@ public class PullButton extends RelativeLayout {
         final int N = a.getIndexCount();
 
 
-
         getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
             public void onGlobalLayout() {
                 getViewTreeObserver().removeOnGlobalLayoutListener(this);
@@ -69,8 +68,7 @@ public class PullButton extends RelativeLayout {
                 textView = (TextView) findViewById(R.id.textView);
                 easeTextView = (TextView) findViewById(R.id.ease_text);
 
-                for (int i = 0; i < N; ++i)
-                {
+                for (int i = 0; i < N; ++i) {
                     int attr = a.getIndex(i);
                     switch (attr)
                     {

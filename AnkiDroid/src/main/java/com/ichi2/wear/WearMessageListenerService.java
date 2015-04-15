@@ -26,20 +26,15 @@ import com.google.android.gms.wearable.WearableStatusCodes;
 import com.ichi2.anki.AbstractFlashcardViewer;
 import com.ichi2.anki.AnkiDroidApp;
 import com.ichi2.anki.DeckPicker;
-import com.ichi2.anki.R;
 import com.ichi2.async.CollectionLoader;
 import com.ichi2.async.DeckTask;
 import com.ichi2.libanki.Card;
 import com.ichi2.libanki.Collection;
 import com.ichi2.libanki.Sched;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.TreeSet;
@@ -56,7 +51,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
     private static final String W2P_RESPOND_CARD_EASE = "/com.ichi2.wear/cardEase";
     private static final String P2W_COLLECTION_LIST = "/com.ichi2.wear/collections";
     private static final String W2P_CHOOSE_COLLECTION = "/com.ichi2.wear/chooseCollection";
-    private static final String P2W_NOMORECARDS = "/com.ichi2.wear/noMoreCards";
+    private static final String P2W_NO_MORE_CARDS = "/com.ichi2.wear/noMoreCards";
     private static final String W2P_REQUEST_DECKS = "/com.ichi2.wear/requestDecks";
     private GoogleApiClient googleApiClient;
     protected Sched mSched;
@@ -203,7 +198,7 @@ public class WearMessageListenerService extends WearableListenerService implemen
     private static final int TASK_TYPE_REQUEST_DECKS = 14;
 
     private void sendNoMoreCardsToWear() {
-        fireMessage(null, P2W_NOMORECARDS);
+        fireMessage(null, P2W_NO_MORE_CARDS);
     }
 
 
