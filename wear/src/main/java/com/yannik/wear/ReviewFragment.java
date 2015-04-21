@@ -1,17 +1,18 @@
 package com.yannik.wear;
 
 import android.app.Activity;
-import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.wearable.view.WatchViewStub;
 import android.text.Spanned;
 import android.text.SpannedString;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -34,12 +35,13 @@ public class ReviewFragment extends Fragment implements WearMainActivity.JsonRec
     static final String P2W_NO_MORE_CARDS = "/com.ichi2.wear/noMoreCards";
     static final String W2P_REQUEST_DECKS = "/com.ichi2.wear/requestDecks";
     public static TextView mTextView;
-    private RelativeLayout textLayout;
+    private RelativeLayout qaOverlay;
     private PullButton failed, hard, mid, easy;
     private boolean showingEaseButtons = false, showingAnswer = false;
     private Timer easeButtonShowTimer = new Timer();
 
     private ScrollView qaScrollView;
+    private boolean scrollViewMoved;
 
     /**
      * Use this factory method to create a new instance of
@@ -129,18 +131,18 @@ public class ReviewFragment extends Fragment implements WearMainActivity.JsonRec
 
     private void blockControls(){
         hideButtons();
-        textLayout.setOnClickListener(null);
+        qaOverlay.setOnClickListener(null);
     }
 
     private void unblockControls(){
-        textLayout.setOnClickListener(textClickListener);
+        qaOverlay.setOnClickListener(textClickListener);
     }
 
 
     private View.OnClickListener textClickListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
-            if (!showingEaseButtons) {
+            if (!scrollViewMoved && !showingEaseButtons) {
                 showAnswer();
             }
         }
@@ -159,7 +161,7 @@ public class ReviewFragment extends Fragment implements WearMainActivity.JsonRec
             @Override
             public void onLayoutInflated(WatchViewStub stub) {
                 mTextView = (TextView) stub.findViewById(R.id.text);
-                textLayout = (RelativeLayout) stub.findViewById(R.id.questionAnswerOverlay);
+                qaOverlay = (RelativeLayout) stub.findViewById(R.id.questionAnswerOverlay);
                 qaScrollView = (ScrollView) stub.findViewById(R.id.questionAnswerScrollView);
                 final GestureDetector gestureDetector = new GestureDetector(getActivity().getBaseContext(), new GestureDetector.SimpleOnGestureListener(){
                     @Override
@@ -177,17 +179,27 @@ public class ReviewFragment extends Fragment implements WearMainActivity.JsonRec
                 });
 
 
-                textLayout.setOnClickListener(textClickListener);
+                qaOverlay.setOnClickListener(textClickListener);
 
 
-                textLayout.setOnTouchListener(new View.OnTouchListener() {
+                qaOverlay.setOnTouchListener(new View.OnTouchListener() {
                     @Override
                     public boolean onTouch(View v, MotionEvent event) {
 //                        Log.v("test", "ontouchevent " + event.getAction());
+                        if(event.getActionMasked() == MotionEvent.ACTION_DOWN){
+                            scrollViewMoved = false;
+                        }
                         gestureDetector.onTouchEvent(event);
                         qaScrollView.onTouchEvent(event);
                         return false;
 
+                    }
+                });
+
+                qaScrollView.getViewTreeObserver().addOnScrollChangedListener(new ViewTreeObserver.OnScrollChangedListener() {
+                    @Override
+                    public void onScrollChanged() {
+                        scrollViewMoved = true;
                     }
                 });
 
